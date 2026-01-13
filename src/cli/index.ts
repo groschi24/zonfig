@@ -275,7 +275,7 @@ async function commandInit(args: ParsedArgs): Promise<void> {
   await mkdir(resolve(targetDir, 'config'), { recursive: true });
 
   // Create config schema file
-  const configTs = `import { defineConfig, z, ConfigValidationError } from 'zonfig';
+  const configTs = `import { defineConfig, z, ConfigValidationError } from '@zonfig/zonfig';
 
 // Define your application's configuration schema
 export const schema = z.object({
@@ -380,7 +380,7 @@ APP_LOGGING__LEVEL=info
 Setup complete! Next steps:
 
   1. Install zonfig:
-     npm install zonfig
+     npm install @zonfig/zonfig
 
   2. Import and use the config:
      import { loadConfig } from './src/config.js';

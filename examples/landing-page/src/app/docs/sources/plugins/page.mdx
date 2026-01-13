@@ -20,7 +20,7 @@ const config = await defineConfig({
 Use `definePlugin` to create a custom source:
 
 ```typescript
-import { definePlugin, registerPlugin } from 'zonfig';
+import { definePlugin, registerPlugin } from '@zonfig/zonfig';
 
 const myPlugin = definePlugin({
   name: 'my-plugin',
@@ -54,7 +54,7 @@ interface LoaderContext {
 
 ```typescript
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
-import { definePlugin, registerPlugin } from 'zonfig';
+import { definePlugin, registerPlugin } from '@zonfig/zonfig';
 
 interface AwsSecretsOptions {
   secretId: string;
@@ -90,7 +90,7 @@ registerPlugin(awsSecretsPlugin);
 ## HashiCorp Vault Example
 
 ```typescript
-import { definePlugin, registerPlugin } from 'zonfig';
+import { definePlugin, registerPlugin } from '@zonfig/zonfig';
 
 interface VaultOptions {
   address: string;
@@ -136,7 +136,7 @@ import {
   hasPlugin,
   unregisterPlugin,
   clearPlugins,
-} from 'zonfig';
+} from '@zonfig/zonfig';
 
 // Check if plugin exists
 if (hasPlugin('aws-secrets')) {

@@ -1,5 +1,5 @@
 {
-  "name": "zonfig",
+  "name": "@zonfig/zonfig",
   "version": "0.1.0",
   "description": "Universal typed configuration library with Zod validation, multi-source loading, and auto-documentation",
   "type": "module",

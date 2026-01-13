@@ -202,7 +202,7 @@ Prefixes:
 Plugins are a great way to contribute without modifying core code:
 
 ```typescript
-import { definePlugin, registerPlugin } from 'zonfig';
+import { definePlugin, registerPlugin } from '@zonfig/zonfig';
 
 export const myPlugin = definePlugin({
   name: 'my-source',

@@ -534,7 +534,7 @@ function inferTypeFromValue(value: unknown): ConfigValue['inferredType'] {
 function generateSchema(result: AnalysisResult, options: AnalyzeOptions): string {
   const lines: string[] = [];
 
-  lines.push(`import { defineConfig, z, ConfigValidationError } from 'zonfig';`);
+  lines.push(`import { defineConfig, z, ConfigValidationError } from '@zonfig/zonfig';`);
   lines.push('');
   lines.push('// Auto-generated schema from project analysis');
   lines.push(`// Generated: ${new Date().toISOString()}`);
@@ -948,7 +948,7 @@ async function analyzeMonorepoAll(
     console.log(`
 Next Steps:
   1. Review generated configs in each package's src/config.ts
-  2. Install zonfig in each package: npm install zonfig
+  2. Install zonfig in each package: npm install @zonfig/zonfig
   3. Import shared config if needed
   4. Update code to use typed config
 `);

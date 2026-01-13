@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs';
-import { generateDocs } from 'zonfig';
+import { generateDocs } from '@zonfig/zonfig';
 import { configSchema } from './config.js';
 
 console.log('Generating configuration documentation...\n');

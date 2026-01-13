@@ -58,7 +58,7 @@ Create a shared package for common configuration:
 
 ```typescript
 // packages/shared/config/src/index.ts
-import { z } from 'zonfig';
+import { z } from '@zonfig/zonfig';
 
 // Shared schema parts
 export const loggingSchema = z.object({
@@ -82,7 +82,7 @@ Each package defines its own schema:
 
 ```typescript
 // packages/api/src/config.ts
-import { defineConfig, z } from 'zonfig';
+import { defineConfig, z } from '@zonfig/zonfig';
 import { loggingSchema, databaseSchema } from '@myorg/shared-config';
 
 const schema = z.object({
@@ -144,7 +144,7 @@ Shared config values: 2 (logging, database)
 
 Next Steps:
   1. Review generated configs in each package's src/config.ts
-  2. Install zonfig in each package: npm install zonfig
+  2. Install zonfig in each package: npm install @zonfig/zonfig
   3. Import shared config if needed
   4. Update code to use typed config
 ```

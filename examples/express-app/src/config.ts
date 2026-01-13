@@ -1,4 +1,4 @@
-import { defineConfig, z, ConfigValidationError } from 'zonfig';
+import { defineConfig, z, ConfigValidationError } from '@zonfig/zonfig';
 
 // Define your application's configuration schema
 export const configSchema = z.object({

@@ -7,7 +7,7 @@ Define your configuration shape using Zod schemas for full type safety and runti
 Create a schema using Zod's type constructors:
 
 ```typescript
-import { defineConfig, z } from 'zonfig';
+import { defineConfig, z } from '@zonfig/zonfig';
 
 const config = await defineConfig({
   schema: z.object({
@@ -25,17 +25,17 @@ zonfig re-exports Zod for convenience. You can import it in two ways:
 
 ```typescript
 // Short form (recommended)
-import { z } from 'zonfig';
+import { z } from '@zonfig/zonfig';
 
 // Explicit form (avoids conflicts if you use Zod elsewhere)
-import { zod } from 'zonfig';
+import { zod } from '@zonfig/zonfig';
 ```
 
 <Callout type="info">
 If your project already uses Zod directly, you can use your own import to ensure version consistency:
 
 ```typescript
-import { defineConfig } from 'zonfig';
+import { defineConfig } from '@zonfig/zonfig';
 import { z } from 'zod'; // your own Zod
 ```
 </Callout>

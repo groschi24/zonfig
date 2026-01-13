@@ -12,11 +12,11 @@ Get started with zonfig in your Node.js project.
 Install zonfig:
 
 ```bash
-npm install zonfig
+npm install @zonfig/zonfig
 ```
 
 <Callout type="info">
-Zod is bundled with zonfig - no need to install it separately. Import it directly: `import { z } from 'zonfig'`
+Zod is bundled with zonfig - no need to install it separately. Import it directly: `import { z } from '@zonfig/zonfig'`
 </Callout>
 
 Or with your preferred package manager:
@@ -56,7 +56,7 @@ The `strict` mode is important for getting the best type inference from your Zod
 Create a simple test file to verify the installation:
 
 ```typescript
-import { defineConfig, z } from 'zonfig';
+import { defineConfig, z } from '@zonfig/zonfig';
 
 const config = await defineConfig({
   schema: z.object({

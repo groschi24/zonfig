@@ -41,7 +41,7 @@ The `strict` mode is essential for getting the best type inference from your Zod
 zonfig automatically infers types from your Zod schema:
 
 ```typescript
-import { defineConfig, z } from 'zonfig';
+import { defineConfig, z } from '@zonfig/zonfig';
 
 const schema = z.object({
   port: z.number(),
@@ -63,7 +63,7 @@ Export your config type for use across your application:
 
 ```typescript
 // config.ts
-import { defineConfig, z } from 'zonfig';
+import { defineConfig, z } from '@zonfig/zonfig';
 
 export const schema = z.object({
   server: z.object({
@@ -141,7 +141,7 @@ const port: number = config.get('server.host');
 Create a typed helper for accessing config:
 
 ```typescript
-import { defineConfig, z } from 'zonfig';
+import { defineConfig, z } from '@zonfig/zonfig';
 
 const schema = z.object({
   apiUrl: z.string(),
@@ -185,7 +185,7 @@ Install the following extensions for the best experience:
 
 Ensure you've installed the package:
 ```bash
-npm install zonfig
+npm install @zonfig/zonfig
 ```
 
 ### Type inference not working

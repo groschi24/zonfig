@@ -1,8 +1,8 @@
 # zonfig
 
-[![npm version](https://img.shields.io/npm/v/zonfig.svg)](https://www.npmjs.com/package/zonfig)
-[![npm downloads](https://img.shields.io/npm/dm/zonfig.svg)](https://www.npmjs.com/package/zonfig)
-[![license](https://img.shields.io/npm/l/zonfig.svg)](https://github.com/groschi24/zonfig/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@zonfig/zonfig.svg)](https://www.npmjs.com/package/@zonfig/zonfig)
+[![npm downloads](https://img.shields.io/npm/dm/@zonfig/zonfig.svg)](https://www.npmjs.com/package/@zonfig/zonfig)
+[![license](https://img.shields.io/npm/l/@zonfig/zonfig.svg)](https://github.com/groschi24/zonfig/blob/main/LICENSE)
 
 A universal, type-safe configuration library for Node.js applications. Define your config schema once with Zod and load from multiple sources with full TypeScript inference.
 
@@ -19,13 +19,13 @@ A universal, type-safe configuration library for Node.js applications. Define yo
 ## Installation
 
 ```bash
-npm install zonfig
+npm install @zonfig/zonfig
 ```
 
 ## Quick Start
 
 ```typescript
-import { defineConfig, z } from 'zonfig';
+import { defineConfig, z } from '@zonfig/zonfig';
 
 // Define your schema
 const config = await defineConfig({
@@ -133,7 +133,7 @@ const config = await defineConfig({
 Create custom plugins to load configuration from any source:
 
 ```typescript
-import { definePlugin, registerPlugin } from 'zonfig';
+import { definePlugin, registerPlugin } from '@zonfig/zonfig';
 
 const awsSecretsPlugin = definePlugin({
   name: 'aws-secrets',
@@ -156,7 +156,7 @@ registerPlugin(awsSecretsPlugin);
 Generate documentation from your schema:
 
 ```typescript
-import { generateDocs } from 'zonfig';
+import { generateDocs } from '@zonfig/zonfig';
 
 // Markdown documentation
 const markdown = generateDocs(schema, { format: 'markdown' });
@@ -424,7 +424,7 @@ import {
   ConfigFileNotFoundError,
   ConfigParseError,
   PluginNotFoundError,
-} from 'zonfig';
+} from '@zonfig/zonfig';
 
 try {
   const config = await defineConfig({ schema, sources });

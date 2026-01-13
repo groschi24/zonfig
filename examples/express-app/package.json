@@ -8,7 +8,7 @@
     "generate:docs": "tsx src/generate-docs.ts"
   },
   "dependencies": {
-    "zonfig": "file:../..",
+    "@zonfig/zonfig": "file:../..",
     "zod": "^3.24.1"
   },
   "devDependencies": {

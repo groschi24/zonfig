@@ -1,4 +1,4 @@
-import { defineConfig, z, ConfigValidationError } from 'zonfig';
+import { defineConfig, z, ConfigValidationError } from '@zonfig/zonfig';
 
 // Define the configuration schema for the landing page
 export const schema = z.object({
