@@ -6,7 +6,7 @@ import { generateDocs } from '../documentation/index.js';
 import { analyzeProject } from './analyze.js';
 import { z } from 'zod';
 
-const VERSION = '0.1.1';
+const VERSION = '0.1.2';
 
 const HELP = `
 zonfig - Universal typed configuration CLI
@@ -72,7 +72,7 @@ Options:
                          Must export 'schema' or 'configSchema'
   -o, --output <dir>     Output directory (default: current directory)
   -f, --format <type>    Output format: markdown, env, json-schema, all (default: all)
-  -p, --prefix <prefix>  Environment variable prefix for env format (default: APP_)
+  -p, --prefix <prefix>  Environment variable prefix for env format (default: none)
   -t, --title <title>    Title for markdown documentation
   -h, --help             Show this help message
 
@@ -200,7 +200,7 @@ async function commandDocs(args: ParsedArgs): Promise<void> {
 
   const outputDir = args.values.output || '.';
   const format = args.values.format || 'all';
-  const prefix = args.values.prefix || 'APP_';
+  const prefix = args.values.prefix ?? '';
   const title = args.values.title || 'Configuration Reference';
 
   console.log(`Loading schema from: ${schemaPath}`);

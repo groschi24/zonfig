@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2025-01-13
+
+### Fixed
+
+- Fixed env-example generator mangling uppercase variable names (e.g., `NODE_ENV` was becoming `N_O_D_E__E_N_V`)
+- Changed default prefix from `APP_` to none for env-example generation
+
 ## [0.1.1] - 2025-01-13
 
 ### Changed

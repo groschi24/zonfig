@@ -9,16 +9,31 @@ interface EnvField {
 }
 
 /**
+ * Convert camelCase to SCREAMING_SNAKE_CASE
+ * poolSize -> POOL_SIZE
+ * NODE_ENV -> NODE_ENV (already uppercase, unchanged)
+ */
+function toScreamingSnake(str: string): string {
+  // If already all uppercase/underscores, return as-is
+  if (/^[A-Z0-9_]+$/.test(str)) {
+    return str;
+  }
+  // Convert camelCase to SCREAMING_SNAKE_CASE
+  return str
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toUpperCase();
+}
+
+/**
  * Convert path to environment variable name
- * server.port -> SERVER_PORT
+ * server.port -> SERVER__PORT
  * database.poolSize -> DATABASE__POOL_SIZE
+ * NODE_ENV -> NODE_ENV
  */
 function pathToEnvKey(path: string, prefix: string = ''): string {
   const envKey = path
     .split('.')
-    .map((part) =>
-      part.replace(/([A-Z])/g, '_$1').toUpperCase()
-    )
+    .map(toScreamingSnake)
     .join('__');
 
   return prefix ? `${prefix}${envKey}` : envKey;
