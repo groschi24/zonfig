@@ -37,6 +37,7 @@
     "prepublishOnly": "npm run build && npm run test"
   },
   "dependencies": {
+    "@inquirer/prompts": "^8.2.0",
     "yaml": "^2.7.0",
     "zod": "^3.22.0"
   },

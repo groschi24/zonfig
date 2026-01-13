@@ -41,9 +41,9 @@
   - Generate migration scripts
   - `zonfig migrate` CLI command
 
-- [ ] **Interactive CLI** - Better developer experience
+- [x] **Interactive CLI** - Better developer experience
   - `zonfig init` with interactive prompts
-  - TUI for browsing/editing config
+  - `zonfig show` for browsing config in tree view
   - `zonfig check` for health checks
 
 ## Nice to Have
@@ -102,3 +102,4 @@
 - [x] Secrets masking with `config.getMasked()` and utility functions
 - [x] Encrypted configs with AES-256-GCM, CLI commands, and auto-decrypt in config loading
 - [x] Schema migrations with `zonfig migrate` CLI, breaking change detection, and auto-migration
+- [x] Interactive CLI with `zonfig init -i`, `zonfig check`, and `zonfig show`

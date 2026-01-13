@@ -7,6 +7,7 @@ import { analyzeProject } from './analyze.js';
 import { encryptObject, decryptObject, countEncryptedValues, hasEncryptedValues } from '../utils/encrypt.js';
 import { diffSchemas, generateMigrationReport, validateConfigAgainstChanges, applyAutoMigrations } from '../utils/schema-diff.js';
 import { z } from 'zod';
+import { input, select, confirm, checkbox } from '@inquirer/prompts';
 
 const VERSION = '0.1.3';
 
@@ -22,8 +23,10 @@ Commands:
   encrypt   Encrypt sensitive values in a configuration file
   decrypt   Decrypt encrypted values in a configuration file
   migrate   Compare schemas and generate migration report
-  init      Initialize a new zonfig configuration setup
+  init      Initialize a new zonfig configuration setup (use -i for interactive)
   validate  Validate a configuration file against a schema
+  check     Run health checks on your configuration setup
+  show      Display configuration in a formatted tree view
   help      Show this help message
 
 Run 'zonfig <command> --help' for command-specific help.
@@ -95,12 +98,18 @@ Usage:
 
 Options:
   -d, --dir <directory>  Directory to initialize (default: current directory)
+  -i, --interactive      Run in interactive mode with prompts
   -h, --help             Show this help message
 
 Creates:
   - src/config.ts        Configuration schema and loader
   - config/default.json  Default configuration values
   - .env.example         Environment variable template
+
+Examples:
+  zonfig init              # Quick setup with defaults
+  zonfig init -i           # Interactive setup with prompts
+  zonfig init -d ./myapp   # Initialize in specific directory
 `;
 
 const VALIDATE_HELP = `
@@ -208,6 +217,56 @@ Examples:
   zonfig migrate --old ./v1.ts --new ./v2.ts --report migration-report.md
 `;
 
+const SHOW_HELP = `
+zonfig show - Display configuration in a formatted tree view
+
+Usage:
+  zonfig show [options]
+
+Options:
+  -s, --schema <file>   Path to schema file (required)
+  -c, --config <file>   Path to config file (optional, validates defaults)
+  --masked              Mask sensitive values (default: true)
+  --no-masked           Show actual values (use with caution)
+  --json                Output as JSON
+  --paths               Show only config paths (no values)
+  -h, --help            Show this help message
+
+Examples:
+  zonfig show -s ./src/config.ts                    # Show schema with defaults
+  zonfig show -s ./src/config.ts -c ./config.json   # Show merged config
+  zonfig show -s ./src/config.ts --no-masked        # Show actual values
+  zonfig show -s ./src/config.ts --list-paths       # List all config paths
+`;
+
+const CHECK_HELP = `
+zonfig check - Run health checks on your configuration setup
+
+Usage:
+  zonfig check [options]
+
+Options:
+  -s, --schema <file>   Path to schema file (optional, auto-detected)
+  -c, --config <file>   Path to config file (optional, auto-detected)
+  -d, --dir <directory> Directory to check (default: current directory)
+  --fix                 Attempt to fix issues automatically
+  -h, --help            Show this help message
+
+Checks performed:
+  - Schema file exists and is valid
+  - Config files are valid JSON/YAML
+  - Config validates against schema
+  - Environment variables are set
+  - No sensitive values in plain text
+  - No encrypted values with missing keys
+
+Examples:
+  zonfig check                    # Check current directory
+  zonfig check -d ./myapp         # Check specific directory
+  zonfig check -s ./schema.ts     # Check with specific schema
+  zonfig check --fix              # Fix issues automatically
+`;
+
 interface ParsedArgs {
   values: {
     schema?: string;
@@ -230,6 +289,12 @@ interface ParsedArgs {
     new?: string;
     auto?: boolean;
     report?: string;
+    // Interactive CLI options
+    interactive?: boolean;
+    fix?: boolean;
+    masked?: boolean;
+    json?: boolean;
+    'list-paths'?: boolean;
   };
   positionals: string[];
 }
@@ -259,6 +324,12 @@ function parseCliArgs(): ParsedArgs {
         new: { type: 'string' },
         auto: { type: 'boolean' },
         report: { type: 'string' },
+        // Interactive CLI options
+        interactive: { type: 'boolean', short: 'i' },
+        fix: { type: 'boolean' },
+        masked: { type: 'boolean' },
+        json: { type: 'boolean' },
+        'list-paths': { type: 'boolean' },
       },
     });
   } catch {
@@ -369,6 +440,234 @@ async function commandDocs(args: ParsedArgs): Promise<void> {
   }
 }
 
+interface InitOptions {
+  projectName: string;
+  envPrefix: string;
+  configPath: string;
+  sections: string[];
+  generateDocs: boolean;
+  configFormat: 'json' | 'yaml';
+}
+
+async function runInteractiveInit(): Promise<InitOptions> {
+  console.log('\n  Welcome to zonfig! Let\'s set up your configuration.\n');
+
+  const projectName = await input({
+    message: 'Project name:',
+    default: 'my-app',
+  });
+
+  const envPrefix = await input({
+    message: 'Environment variable prefix:',
+    default: projectName.toUpperCase().replace(/[^A-Z0-9]/g, '_') + '_',
+  });
+
+  const configPath = await input({
+    message: 'Config file location:',
+    default: 'src/config.ts',
+  });
+
+  const configFormat = await select({
+    message: 'Default config file format:',
+    choices: [
+      { name: 'JSON', value: 'json' as const },
+      { name: 'YAML', value: 'yaml' as const },
+    ],
+    default: 'json',
+  });
+
+  const sections = await checkbox({
+    message: 'Which config sections do you need?',
+    choices: [
+      { name: 'Server (host, port)', value: 'server', checked: true },
+      { name: 'Database (url, poolSize)', value: 'database', checked: true },
+      { name: 'Logging (level)', value: 'logging', checked: true },
+      { name: 'Auth (secret, expiresIn)', value: 'auth', checked: false },
+      { name: 'Redis (url)', value: 'redis', checked: false },
+      { name: 'Email (smtp settings)', value: 'email', checked: false },
+    ],
+  });
+
+  const generateDocs = await confirm({
+    message: 'Generate documentation after setup?',
+    default: true,
+  });
+
+  return {
+    projectName,
+    envPrefix,
+    configPath,
+    sections,
+    generateDocs,
+    configFormat,
+  };
+}
+
+function generateSchemaCode(options: InitOptions): string {
+  const sections: string[] = [];
+  const imports = ['defineConfig', 'z', 'ConfigValidationError'];
+
+  if (options.sections.includes('server')) {
+    sections.push(`  server: z.object({
+    host: z.string().default('localhost'),
+    port: z.number().min(1).max(65535).default(3000),
+  })`);
+  }
+
+  if (options.sections.includes('database')) {
+    sections.push(`  database: z.object({
+    url: z.string().url(),
+    poolSize: z.number().min(1).max(100).default(10),
+  })`);
+  }
+
+  if (options.sections.includes('logging')) {
+    sections.push(`  logging: z.object({
+    level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  })`);
+  }
+
+  if (options.sections.includes('auth')) {
+    sections.push(`  auth: z.object({
+    secret: z.string().min(32),
+    expiresIn: z.string().default('7d'),
+  })`);
+  }
+
+  if (options.sections.includes('redis')) {
+    sections.push(`  redis: z.object({
+    url: z.string().url().optional(),
+    enabled: z.boolean().default(false),
+  })`);
+  }
+
+  if (options.sections.includes('email')) {
+    sections.push(`  email: z.object({
+    host: z.string().optional(),
+    port: z.number().default(587),
+    user: z.string().optional(),
+    password: z.string().optional(),
+    from: z.string().email().optional(),
+  })`);
+  }
+
+  const configExt = options.configFormat === 'yaml' ? 'yaml' : 'json';
+
+  return `import { ${imports.join(', ')} } from '@zonfig/zonfig';
+
+// Define your application's configuration schema
+export const schema = z.object({
+${sections.join(',\n\n')},
+});
+
+// Export the schema type
+export type AppConfig = z.infer<typeof schema>;
+
+// Load configuration
+export async function loadConfig() {
+  const env = process.env.NODE_ENV ?? 'development';
+
+  try {
+    return await defineConfig({
+      schema,
+      sources: [
+        { type: 'file', path: './config/default.${configExt}' },
+        { type: 'file', path: \`./config/\${env}.${configExt}\`, optional: true },
+        { type: 'env', prefix: '${options.envPrefix}' },
+      ],
+    });
+  } catch (error) {
+    if (error instanceof ConfigValidationError) {
+      console.error(error.formatErrors());
+      process.exit(1);
+    }
+    throw error;
+  }
+}
+`;
+}
+
+function generateDefaultConfig(options: InitOptions): Record<string, unknown> {
+  const config: Record<string, unknown> = {};
+
+  if (options.sections.includes('server')) {
+    config.server = { host: 'localhost', port: 3000 };
+  }
+
+  if (options.sections.includes('database')) {
+    config.database = { url: 'postgres://localhost:5432/myapp', poolSize: 10 };
+  }
+
+  if (options.sections.includes('logging')) {
+    config.logging = { level: 'info' };
+  }
+
+  if (options.sections.includes('auth')) {
+    config.auth = { secret: 'change-this-to-a-secure-secret-key-32chars', expiresIn: '7d' };
+  }
+
+  if (options.sections.includes('redis')) {
+    config.redis = { enabled: false };
+  }
+
+  if (options.sections.includes('email')) {
+    config.email = { port: 587 };
+  }
+
+  return config;
+}
+
+function generateEnvExample(options: InitOptions): string {
+  const lines: string[] = ['# Configuration Environment Variables', ''];
+  const prefix = options.envPrefix;
+
+  if (options.sections.includes('server')) {
+    lines.push('# Server');
+    lines.push(`${prefix}SERVER__HOST=localhost`);
+    lines.push(`${prefix}SERVER__PORT=3000`);
+    lines.push('');
+  }
+
+  if (options.sections.includes('database')) {
+    lines.push('# Database');
+    lines.push(`${prefix}DATABASE__URL=postgres://localhost:5432/myapp`);
+    lines.push(`${prefix}DATABASE__POOL_SIZE=10`);
+    lines.push('');
+  }
+
+  if (options.sections.includes('logging')) {
+    lines.push('# Logging');
+    lines.push(`${prefix}LOGGING__LEVEL=info`);
+    lines.push('');
+  }
+
+  if (options.sections.includes('auth')) {
+    lines.push('# Auth');
+    lines.push(`${prefix}AUTH__SECRET=change-this-to-a-secure-secret-key-32chars`);
+    lines.push(`${prefix}AUTH__EXPIRES_IN=7d`);
+    lines.push('');
+  }
+
+  if (options.sections.includes('redis')) {
+    lines.push('# Redis');
+    lines.push(`${prefix}REDIS__URL=redis://localhost:6379`);
+    lines.push(`${prefix}REDIS__ENABLED=false`);
+    lines.push('');
+  }
+
+  if (options.sections.includes('email')) {
+    lines.push('# Email');
+    lines.push(`${prefix}EMAIL__HOST=smtp.example.com`);
+    lines.push(`${prefix}EMAIL__PORT=587`);
+    lines.push(`${prefix}EMAIL__USER=`);
+    lines.push(`${prefix}EMAIL__PASSWORD=`);
+    lines.push(`${prefix}EMAIL__FROM=noreply@example.com`);
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
 async function commandInit(args: ParsedArgs): Promise<void> {
   if (args.values.help) {
     console.log(INIT_HELP);
@@ -376,12 +675,37 @@ async function commandInit(args: ParsedArgs): Promise<void> {
   }
 
   const targetDir = resolve(process.cwd(), args.values.dir || '.');
+  const isInteractive = args.values.interactive || false;
 
-  console.log(`Initializing zonfig in: ${targetDir}\n`);
+  // Get configuration options
+  let options: InitOptions;
+
+  if (isInteractive) {
+    try {
+      options = await runInteractiveInit();
+    } catch {
+      // User cancelled (Ctrl+C)
+      console.log('\n  Setup cancelled.\n');
+      return;
+    }
+  } else {
+    // Default options for non-interactive mode
+    options = {
+      projectName: 'my-app',
+      envPrefix: 'APP_',
+      configPath: 'src/config.ts',
+      sections: ['server', 'database', 'logging'],
+      generateDocs: false,
+      configFormat: 'json',
+    };
+  }
+
+  console.log(`\nInitializing zonfig in: ${targetDir}\n`);
 
   // Create directories
+  const configDir = resolve(targetDir, options.configPath.replace(/\/[^/]+$/, ''));
   try {
-    await mkdir(resolve(targetDir, 'src'), { recursive: true });
+    await mkdir(configDir, { recursive: true });
     await mkdir(resolve(targetDir, 'config'), { recursive: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -396,87 +720,18 @@ async function commandInit(args: ParsedArgs): Promise<void> {
     process.exit(1);
   }
 
-  // Create config schema file
-  const configTs = `import { defineConfig, z, ConfigValidationError } from '@zonfig/zonfig';
+  // Generate files
+  const configTs = generateSchemaCode(options);
+  const defaultConfig = generateDefaultConfig(options);
+  const envExample = generateEnvExample(options);
 
-// Define your application's configuration schema
-export const schema = z.object({
-  server: z.object({
-    host: z.string().default('localhost'),
-    port: z.number().min(1).max(65535).default(3000),
-  }),
-
-  database: z.object({
-    url: z.string().url(),
-    poolSize: z.number().min(1).max(100).default(10),
-  }),
-
-  logging: z.object({
-    level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-  }),
-});
-
-// Export the schema type
-export type AppConfig = z.infer<typeof schema>;
-
-// Load configuration
-export async function loadConfig() {
-  const env = process.env.NODE_ENV ?? 'development';
-
-  try {
-    return await defineConfig({
-      schema,
-      sources: [
-        { type: 'file', path: './config/default.json' },
-        { type: 'file', path: \`./config/\${env}.json\`, optional: true },
-        { type: 'env', prefix: 'APP_' },
-      ],
-    });
-  } catch (error) {
-    if (error instanceof ConfigValidationError) {
-      console.error(error.formatErrors());
-      process.exit(1);
-    }
-    throw error;
-  }
-}
-`;
-
-  // Create default config
-  const defaultJson = {
-    server: {
-      host: 'localhost',
-      port: 3000,
-    },
-    database: {
-      url: 'postgres://localhost:5432/myapp',
-      poolSize: 10,
-    },
-    logging: {
-      level: 'info',
-    },
-  };
-
-  // Create .env.example
-  const envExample = `# Configuration Environment Variables
-
-# Server
-APP_SERVER__HOST=localhost
-APP_SERVER__PORT=3000
-
-# Database
-APP_DATABASE__URL=postgres://localhost:5432/myapp
-APP_DATABASE__POOL_SIZE=10
-
-# Logging
-APP_LOGGING__LEVEL=info
-`;
-
-  // Write files
-  const configTsPath = resolve(targetDir, 'src/config.ts');
-  const defaultJsonPath = resolve(targetDir, 'config/default.json');
+  // Determine file paths and formats
+  const configTsPath = resolve(targetDir, options.configPath);
+  const configExt = options.configFormat === 'yaml' ? 'yaml' : 'json';
+  const defaultConfigPath = resolve(targetDir, `config/default.${configExt}`);
   const envExamplePath = resolve(targetDir, '.env.example');
 
+  // Write files
   if (existsSync(configTsPath)) {
     console.log(`  Skipped: ${configTsPath} (already exists)`);
   } else {
@@ -484,11 +739,16 @@ APP_LOGGING__LEVEL=info
     console.log(`  Created: ${configTsPath}`);
   }
 
-  if (existsSync(defaultJsonPath)) {
-    console.log(`  Skipped: ${defaultJsonPath} (already exists)`);
+  if (existsSync(defaultConfigPath)) {
+    console.log(`  Skipped: ${defaultConfigPath} (already exists)`);
   } else {
-    await writeFile(defaultJsonPath, JSON.stringify(defaultJson, null, 2));
-    console.log(`  Created: ${defaultJsonPath}`);
+    if (options.configFormat === 'yaml') {
+      const { stringify } = await import('yaml');
+      await writeFile(defaultConfigPath, stringify(defaultConfig));
+    } else {
+      await writeFile(defaultConfigPath, JSON.stringify(defaultConfig, null, 2));
+    }
+    console.log(`  Created: ${defaultConfigPath}`);
   }
 
   if (existsSync(envExamplePath)) {
@@ -498,6 +758,20 @@ APP_LOGGING__LEVEL=info
     console.log(`  Created: ${envExamplePath}`);
   }
 
+  // Generate docs if requested
+  if (options.generateDocs) {
+    console.log('\nGenerating documentation...');
+    try {
+      const schema = await loadSchemaFromFile(configTsPath);
+      const markdown = generateDocs(schema, { format: 'markdown', title: `${options.projectName} Configuration` });
+      const docsPath = resolve(targetDir, 'CONFIG.md');
+      await writeFile(docsPath, markdown);
+      console.log(`  Created: ${docsPath}`);
+    } catch (error) {
+      console.log(`  Skipped: Could not generate docs (${error instanceof Error ? error.message : 'unknown error'})`);
+    }
+  }
+
   console.log(`
 Setup complete! Next steps:
 
@@ -505,12 +779,12 @@ Setup complete! Next steps:
      npm install @zonfig/zonfig
 
   2. Import and use the config:
-     import { loadConfig } from './src/config.js';
+     import { loadConfig } from './${options.configPath.replace('.ts', '.js')}';
      const config = await loadConfig();
      console.log(config.get('server.port'));
 
   3. Generate documentation:
-     npx zonfig docs -s ./src/config.ts
+     npx zonfig docs -s ./${options.configPath}
 `);
 }
 
@@ -868,6 +1142,484 @@ async function commandMigrate(args: ParsedArgs): Promise<void> {
   }
 }
 
+interface SchemaFieldInfo {
+  type: string;
+  isOptional?: boolean;
+  hasDefault?: boolean;
+  defaultValue?: unknown;
+  children?: Record<string, SchemaFieldInfo>;
+}
+
+function extractDefaults(info: SchemaFieldInfo): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  if (info.children) {
+    for (const [key, child] of Object.entries(info.children)) {
+      if (child.children) {
+        // Nested object
+        result[key] = extractDefaults(child);
+      } else if (child.hasDefault) {
+        result[key] = child.defaultValue;
+      } else if (child.isOptional) {
+        // Skip optional without default
+      } else {
+        result[key] = `<${child.type.replace('Zod', '').toLowerCase()} required>`;
+      }
+    }
+  }
+
+  return result;
+}
+
+async function commandShow(args: ParsedArgs): Promise<void> {
+  if (args.values.help) {
+    console.log(SHOW_HELP);
+    return;
+  }
+
+  const schemaPath = args.values.schema;
+  const configPath = args.values.config;
+  const masked = args.values.masked !== false; // Default true
+  const outputJson = args.values.json || false;
+  const showPathsOnly = args.values['list-paths'] || false;
+
+  if (!schemaPath) {
+    console.error('Error: --schema (-s) is required\n');
+    console.log(SHOW_HELP);
+    process.exit(1);
+  }
+
+  try {
+    // Load schema
+    const schema = await loadSchemaFromFile(schemaPath);
+
+    // Get default values from schema or load config
+    let finalConfig: Record<string, unknown>;
+
+    if (configPath) {
+      // Config file provided - load and validate
+      const { data } = await loadConfigFile(configPath);
+      const result = schema.safeParse(data);
+      if (!result.success) {
+        console.error('Config validation errors:');
+        for (const issue of result.error.issues.slice(0, 5)) {
+          console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
+        }
+        if (result.error.issues.length > 5) {
+          console.error(`  ... and ${result.error.issues.length - 5} more`);
+        }
+        process.exit(1);
+      }
+      finalConfig = result.data as Record<string, unknown>;
+    } else {
+      // No config file - extract defaults from schema
+      const { extractSchemaInfo } = await import('../utils/schema-diff.js');
+      const schemaInfo = extractSchemaInfo(schema);
+      finalConfig = extractDefaults(schemaInfo);
+    }
+
+    // Mask sensitive values if requested
+    let displayConfig = finalConfig;
+    if (masked) {
+      const { maskObject } = await import('../utils/mask.js');
+      displayConfig = maskObject(finalConfig);
+    }
+
+    // Output format
+    if (outputJson) {
+      console.log(JSON.stringify(displayConfig, null, 2));
+      return;
+    }
+
+    if (showPathsOnly) {
+      console.log('Configuration Paths:');
+      console.log('====================\n');
+      const paths: string[] = [];
+
+      function collectPaths(obj: unknown, path: string[] = []): void {
+        if (!obj || typeof obj !== 'object') {
+          paths.push(path.join('.'));
+          return;
+        }
+        for (const [key, value] of Object.entries(obj)) {
+          if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            collectPaths(value, [...path, key]);
+          } else {
+            paths.push([...path, key].join('.'));
+          }
+        }
+      }
+
+      collectPaths(displayConfig);
+      for (const p of paths.sort()) {
+        console.log(`  ${p}`);
+      }
+      return;
+    }
+
+    // Tree view
+    console.log('Configuration:');
+    console.log('==============\n');
+
+    function printTree(obj: unknown, prefix = '', isLast = true): void {
+      if (!obj || typeof obj !== 'object') return;
+
+      const entries = Object.entries(obj);
+      entries.forEach(([key, value], index) => {
+        const isLastEntry = index === entries.length - 1;
+        const connector = isLastEntry ? '└── ' : '├── ';
+        const childPrefix = isLastEntry ? '    ' : '│   ';
+
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          console.log(`${prefix}${connector}${key}:`);
+          printTree(value, prefix + childPrefix, isLastEntry);
+        } else {
+          const displayValue = formatValue(value);
+          console.log(`${prefix}${connector}${key}: ${displayValue}`);
+        }
+      });
+    }
+
+    function formatValue(value: unknown): string {
+      if (value === null) return 'null';
+      if (value === undefined) return 'undefined';
+      if (typeof value === 'string') {
+        if (value.length > 50) {
+          return `"${value.slice(0, 47)}..."`;
+        }
+        return `"${value}"`;
+      }
+      if (typeof value === 'boolean') return value ? 'true' : 'false';
+      if (typeof value === 'number') return String(value);
+      if (Array.isArray(value)) {
+        if (value.length === 0) return '[]';
+        if (value.length <= 3) {
+          return `[${value.map(formatValue).join(', ')}]`;
+        }
+        return `[${value.slice(0, 3).map(formatValue).join(', ')}, ... (${value.length} items)]`;
+      }
+      return String(value);
+    }
+
+    printTree(displayConfig);
+
+    // Summary
+    const pathCount = countPaths(displayConfig);
+    console.log(`\n${pathCount} configuration values`);
+    if (configPath) {
+      console.log(`Loaded from: ${configPath}`);
+    } else {
+      console.log('Using schema defaults');
+    }
+    if (masked) {
+      console.log('Sensitive values are masked');
+    }
+
+  } catch (error) {
+    console.error(`\nError: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+}
+
+function countPaths(obj: unknown): number {
+  if (!obj || typeof obj !== 'object') return 1;
+  let count = 0;
+  for (const value of Object.values(obj)) {
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      count += countPaths(value);
+    } else {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+interface CheckResult {
+  name: string;
+  status: 'pass' | 'warn' | 'fail';
+  message: string;
+  fixable?: boolean;
+}
+
+async function commandCheck(args: ParsedArgs): Promise<void> {
+  if (args.values.help) {
+    console.log(CHECK_HELP);
+    return;
+  }
+
+  const targetDir = resolve(process.cwd(), args.values.dir || '.');
+  const schemaPath = args.values.schema;
+  const configPath = args.values.config;
+  const shouldFix = args.values.fix || false;
+
+  console.log('zonfig Health Check');
+  console.log('===================\n');
+  console.log(`  Directory: ${targetDir}\n`);
+
+  const results: CheckResult[] = [];
+
+  // Check 1: Look for schema file
+  const possibleSchemas = [
+    schemaPath,
+    'src/config.ts',
+    'config.ts',
+    'src/schema.ts',
+    'schema.ts',
+    'lib/config.ts',
+  ].filter(Boolean) as string[];
+
+  let foundSchemaPath: string | null = null;
+  for (const sp of possibleSchemas) {
+    const fullPath = resolve(targetDir, sp);
+    if (existsSync(fullPath)) {
+      foundSchemaPath = fullPath;
+      break;
+    }
+  }
+
+  if (foundSchemaPath) {
+    results.push({
+      name: 'Schema file',
+      status: 'pass',
+      message: `Found at ${foundSchemaPath.replace(targetDir + '/', '')}`,
+    });
+  } else {
+    results.push({
+      name: 'Schema file',
+      status: 'fail',
+      message: 'No schema file found. Run `zonfig init` to create one.',
+      fixable: true,
+    });
+  }
+
+  // Check 2: Look for config files
+  const possibleConfigs = [
+    configPath,
+    'config/default.json',
+    'config/default.yaml',
+    'config/default.yml',
+    'config.json',
+    'config.yaml',
+  ].filter(Boolean) as string[];
+
+  let foundConfigPath: string | null = null;
+  for (const cp of possibleConfigs) {
+    const fullPath = resolve(targetDir, cp);
+    if (existsSync(fullPath)) {
+      foundConfigPath = fullPath;
+      break;
+    }
+  }
+
+  if (foundConfigPath) {
+    results.push({
+      name: 'Config file',
+      status: 'pass',
+      message: `Found at ${foundConfigPath.replace(targetDir + '/', '')}`,
+    });
+
+    // Check 3: Validate config syntax
+    try {
+      await loadConfigFile(foundConfigPath.replace(targetDir + '/', ''));
+      results.push({
+        name: 'Config syntax',
+        status: 'pass',
+        message: 'Valid JSON/YAML syntax',
+      });
+    } catch (error) {
+      results.push({
+        name: 'Config syntax',
+        status: 'fail',
+        message: `Invalid syntax: ${error instanceof Error ? error.message : 'unknown error'}`,
+      });
+    }
+  } else {
+    results.push({
+      name: 'Config file',
+      status: 'warn',
+      message: 'No config file found. Using environment variables only.',
+    });
+  }
+
+  // Check 4: Look for .env.example
+  const envExamplePath = resolve(targetDir, '.env.example');
+  if (existsSync(envExamplePath)) {
+    results.push({
+      name: '.env.example',
+      status: 'pass',
+      message: 'Found',
+    });
+  } else {
+    results.push({
+      name: '.env.example',
+      status: 'warn',
+      message: 'Not found. Run `zonfig docs -f env` to generate.',
+      fixable: true,
+    });
+  }
+
+  // Check 5: Validate schema if found
+  if (foundSchemaPath) {
+    try {
+      const schema = await loadSchemaFromFile(foundSchemaPath);
+      results.push({
+        name: 'Schema valid',
+        status: 'pass',
+        message: 'Schema loads and is valid Zod schema',
+      });
+
+      // Check 6: Validate config against schema if both found
+      if (foundConfigPath) {
+        try {
+          const { data } = await loadConfigFile(foundConfigPath.replace(targetDir + '/', ''));
+          const result = schema.safeParse(data);
+          if (result.success) {
+            results.push({
+              name: 'Config validates',
+              status: 'pass',
+              message: 'Config matches schema',
+            });
+          } else {
+            const issues = result.error.issues.slice(0, 3);
+            results.push({
+              name: 'Config validates',
+              status: 'fail',
+              message: `Validation errors: ${issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ')}`,
+            });
+          }
+        } catch {
+          // Already reported syntax error
+        }
+      }
+
+      // Check 7: Check for encrypted values without key
+      if (foundConfigPath) {
+        try {
+          const { data } = await loadConfigFile(foundConfigPath.replace(targetDir + '/', ''));
+          const encryptedCount = countEncryptedValues(data);
+          if (encryptedCount > 0) {
+            if (process.env.ZONFIG_ENCRYPTION_KEY) {
+              results.push({
+                name: 'Encryption key',
+                status: 'pass',
+                message: `Found ${encryptedCount} encrypted value(s), key is set`,
+              });
+            } else {
+              results.push({
+                name: 'Encryption key',
+                status: 'warn',
+                message: `Found ${encryptedCount} encrypted value(s) but ZONFIG_ENCRYPTION_KEY is not set`,
+              });
+            }
+          }
+        } catch {
+          // Already reported
+        }
+      }
+
+      // Check 8: Check for sensitive values in plain text
+      if (foundConfigPath) {
+        try {
+          const { data } = await loadConfigFile(foundConfigPath.replace(targetDir + '/', ''));
+          const sensitiveKeys = ['password', 'secret', 'token', 'apiKey', 'api_key', 'privateKey', 'private_key'];
+          const foundSensitive: string[] = [];
+
+          function checkForSensitive(obj: unknown, path: string[] = []): void {
+            if (!obj || typeof obj !== 'object') return;
+            for (const [key, value] of Object.entries(obj)) {
+              const currentPath = [...path, key];
+              const lowerKey = key.toLowerCase();
+              if (sensitiveKeys.some((sk) => lowerKey.includes(sk.toLowerCase()))) {
+                if (typeof value === 'string' && !value.startsWith('ENC[')) {
+                  foundSensitive.push(currentPath.join('.'));
+                }
+              }
+              if (typeof value === 'object') {
+                checkForSensitive(value, currentPath);
+              }
+            }
+          }
+
+          checkForSensitive(data);
+
+          if (foundSensitive.length > 0) {
+            results.push({
+              name: 'Sensitive values',
+              status: 'warn',
+              message: `Found unencrypted sensitive values: ${foundSensitive.slice(0, 3).join(', ')}${foundSensitive.length > 3 ? '...' : ''}`,
+              fixable: true,
+            });
+          } else {
+            results.push({
+              name: 'Sensitive values',
+              status: 'pass',
+              message: 'No unencrypted sensitive values detected',
+            });
+          }
+        } catch {
+          // Already reported
+        }
+      }
+    } catch (error) {
+      results.push({
+        name: 'Schema valid',
+        status: 'fail',
+        message: `Schema error: ${error instanceof Error ? error.message : 'unknown error'}`,
+      });
+    }
+  }
+
+  // Print results
+  console.log('Results:');
+  let hasErrors = false;
+  let hasWarnings = false;
+
+  for (const result of results) {
+    const icon = result.status === 'pass' ? '✓' : result.status === 'warn' ? '⚠' : '✗';
+    const color = result.status === 'pass' ? '' : result.status === 'warn' ? '' : '';
+    console.log(`  ${icon} ${result.name}: ${result.message}`);
+    if (result.status === 'fail') hasErrors = true;
+    if (result.status === 'warn') hasWarnings = true;
+  }
+
+  // Summary
+  console.log('');
+  const passCount = results.filter((r) => r.status === 'pass').length;
+  const warnCount = results.filter((r) => r.status === 'warn').length;
+  const failCount = results.filter((r) => r.status === 'fail').length;
+
+  console.log(`Summary: ${passCount} passed, ${warnCount} warnings, ${failCount} failed`);
+
+  // Offer fixes if available
+  if (shouldFix) {
+    const fixable = results.filter((r) => r.fixable && r.status !== 'pass');
+    if (fixable.length > 0) {
+      console.log('\nApplying fixes...');
+
+      for (const result of fixable) {
+        if (result.name === 'Schema file') {
+          console.log('  Run `zonfig init` to create a schema file');
+        } else if (result.name === '.env.example' && foundSchemaPath) {
+          try {
+            const schema = await loadSchemaFromFile(foundSchemaPath);
+            const envContent = generateDocs(schema, { format: 'env-example', prefix: 'APP_' });
+            await writeFile(resolve(targetDir, '.env.example'), envContent);
+            console.log('  ✓ Created .env.example');
+          } catch {
+            console.log('  ✗ Could not generate .env.example');
+          }
+        } else if (result.name === 'Sensitive values' && foundConfigPath) {
+          console.log('  Run `zonfig encrypt -c ' + foundConfigPath.replace(targetDir + '/', '') + '` to encrypt sensitive values');
+        }
+      }
+    }
+  }
+
+  if (hasErrors) {
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseCliArgs();
   const command = args.positionals[0];
@@ -895,8 +1647,18 @@ async function main(): Promise<void> {
       break;
 
     case 'validate':
-    case 'check':
       await commandValidate(args);
+      break;
+
+    case 'check':
+    case 'health':
+      await commandCheck(args);
+      break;
+
+    case 'show':
+    case 'view':
+    case 'browse':
+      await commandShow(args);
       break;
 
     case 'analyze':

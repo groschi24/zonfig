@@ -344,11 +344,17 @@ npx zonfig --help
 # Generate documentation from a schema file
 npx zonfig docs -s ./src/config.ts
 
-# Initialize a new zonfig setup
-npx zonfig init
+# Initialize a new zonfig setup (interactive)
+npx zonfig init -i
 
 # Validate a config file against a schema
 npx zonfig validate -s ./src/config.ts -c ./config/production.json
+
+# Run health checks on your config setup
+npx zonfig check
+
+# Browse configuration in tree view
+npx zonfig show -s ./src/config.ts -c ./config/default.json
 ```
 
 ### `zonfig docs`
@@ -401,12 +407,25 @@ npx zonfig init [options]
 
 Options:
   -d, --dir <directory>  Target directory (default: .)
+  -i, --interactive      Run in interactive mode with prompts
 ```
 
 Creates:
 - `src/config.ts` - Schema definition and loader
 - `config/default.json` - Default configuration values
 - `.env.example` - Environment variable template
+
+**Interactive Mode:**
+
+Use `-i` for an interactive setup that lets you:
+- Choose project name and env prefix
+- Select config sections (server, database, auth, redis, email)
+- Choose config file format (JSON or YAML)
+- Generate documentation automatically
+
+```bash
+npx zonfig init -i
+```
 
 ### `zonfig analyze`
 
@@ -596,6 +615,100 @@ Summary:
   Info: 6
 
   ⚠️  Breaking changes detected! Manual migration may be required.
+```
+
+### `zonfig check`
+
+Run health checks on your configuration setup.
+
+```bash
+npx zonfig check [options]
+
+Options:
+  -s, --schema <file>   Path to schema file (optional, auto-detected)
+  -c, --config <file>   Path to config file (optional, auto-detected)
+  -d, --dir <directory> Directory to check (default: current directory)
+  --fix                 Attempt to fix issues automatically
+```
+
+**Checks performed:**
+- Schema file exists and is valid
+- Config files are valid JSON/YAML
+- Config validates against schema
+- No sensitive values in plain text
+- No encrypted values with missing keys
+
+**Example:**
+
+```bash
+npx zonfig check
+```
+
+Output:
+```
+zonfig Health Check
+===================
+
+  Directory: /path/to/project
+
+Results:
+  ✓ Schema file: Found at src/config.ts
+  ✓ Config file: Found at config/default.json
+  ✓ Config syntax: Valid JSON/YAML syntax
+  ✓ .env.example: Found
+  ✓ Schema valid: Schema loads and is valid Zod schema
+  ✓ Config validates: Config matches schema
+  ⚠ Sensitive values: Found unencrypted sensitive values: database.password
+
+Summary: 6 passed, 1 warnings, 0 failed
+```
+
+### `zonfig show`
+
+Display configuration in a formatted tree view.
+
+```bash
+npx zonfig show [options]
+
+Options:
+  -s, --schema <file>   Path to schema file (required)
+  -c, --config <file>   Path to config file (optional)
+  --masked              Mask sensitive values (default: true)
+  --json                Output as JSON
+  --list-paths          Show only config paths
+```
+
+**Examples:**
+
+```bash
+# Show schema with defaults
+npx zonfig show -s ./src/config.ts
+
+# Show merged config
+npx zonfig show -s ./src/config.ts -c ./config/default.json
+
+# List all config paths
+npx zonfig show -s ./src/config.ts --list-paths
+```
+
+Output:
+```
+Configuration:
+==============
+
+├── server:
+│   ├── host: "localhost"
+│   └── port: 3000
+├── database:
+│   ├── url: "postgres://localhost:5432/myapp"
+│   ├── password: "********"
+│   └── poolSize: 10
+└── logging:
+    └── level: "info"
+
+6 configuration values
+Loaded from: ./config/default.json
+Sensitive values are masked
 ```
 
 ## Error Handling
