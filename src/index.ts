@@ -68,6 +68,7 @@ export {
   maskForLog,
   maskErrorMessage,
   isSensitiveKey,
+  isSensitivePath,
   extractSensitiveValues,
   DEFAULT_SENSITIVE_PATTERNS,
   DEFAULT_MASK,

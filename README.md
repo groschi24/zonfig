@@ -731,7 +731,7 @@ By default, the following patterns are detected as sensitive:
 
 ```typescript
 const masked = config.getMasked({
-  // Add custom patterns
+  // Add custom patterns for key names
   patterns: [/^my_secret_/i, /internal/i],
 
   // Custom mask string
@@ -740,11 +740,17 @@ const masked = config.getMasked({
   // Show partial values
   showPartial: { first: 2, last: 2 },  // "se********et"
 
-  // Additional keys to always mask
+  // Additional keys to always mask (by key name)
   additionalKeys: ['internalId', 'debugToken'],
+
+  // Additional paths to always mask (by full path)
+  additionalPaths: ['database.connectionUrl', 'internal.debugId'],
 
   // Keys to exclude from masking
   excludeKeys: ['sessionTimeout'],  // won't mask even though it contains "session"
+
+  // Paths to exclude from masking
+  excludePaths: ['auth.token'],  // won't mask this specific path
 });
 ```
 

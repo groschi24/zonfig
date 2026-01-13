@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import {
   maskObject,
   maskValue,
   maskForLog,
   maskErrorMessage,
   isSensitiveKey,
+  isSensitivePath,
   extractSensitiveValues,
   DEFAULT_MASK,
   DEFAULT_SENSITIVE_PATTERNS,
@@ -313,5 +314,102 @@ describe('DEFAULT_SENSITIVE_PATTERNS', () => {
 describe('DEFAULT_MASK', () => {
   it('should be 8 asterisks', () => {
     expect(DEFAULT_MASK).toBe('********');
+  });
+});
+
+describe('isSensitivePath', () => {
+  it('should detect paths in additionalPaths', () => {
+    expect(isSensitivePath('database.url', { additionalPaths: ['database.url'] })).toBe(true);
+    expect(isSensitivePath('config.internal.id', { additionalPaths: ['config.internal.id'] })).toBe(true);
+  });
+
+  it('should not detect paths not in additionalPaths', () => {
+    expect(isSensitivePath('database.url', { additionalPaths: [] })).toBe(false);
+    expect(isSensitivePath('database.url', {})).toBe(false);
+  });
+
+  it('should respect excludePaths', () => {
+    expect(isSensitivePath('database.url', {
+      additionalPaths: ['database.url'],
+      excludePaths: ['database.url']
+    })).toBe(false);
+  });
+});
+
+describe('maskObject with paths', () => {
+  it('should mask specific paths via additionalPaths', () => {
+    const obj = {
+      database: {
+        host: 'localhost',
+        url: 'postgres://user:pass@localhost/db',
+      },
+      app: {
+        name: 'myapp',
+        internalId: 'id_12345',
+      },
+    };
+
+    const masked = maskObject(obj, {
+      additionalPaths: ['database.url', 'app.internalId'],
+    });
+
+    expect(masked.database.host).toBe('localhost');
+    expect(masked.database.url).toBe(DEFAULT_MASK);
+    expect(masked.app.name).toBe('myapp');
+    expect(masked.app.internalId).toBe(DEFAULT_MASK);
+  });
+
+  it('should exclude specific paths via excludePaths', () => {
+    const obj = {
+      auth: {
+        token: 'secret_token',
+        sessionTimeout: 3600,
+      },
+    };
+
+    // 'token' matches sensitive pattern, but we exclude auth.token
+    const masked = maskObject(obj, {
+      excludePaths: ['auth.token'],
+    });
+
+    expect(masked.auth.token).toBe('secret_token'); // not masked due to excludePaths
+  });
+
+  it('should combine key patterns and path patterns', () => {
+    const obj = {
+      database: {
+        connectionString: 'postgres://localhost/db', // matches 'connectionString' pattern
+        customUrl: 'http://example.com', // doesn't match pattern
+      },
+      internal: {
+        debugValue: 'debug123', // doesn't match pattern
+      },
+    };
+
+    const masked = maskObject(obj, {
+      additionalPaths: ['internal.debugValue'],
+    });
+
+    expect(masked.database.connectionString).toBe(DEFAULT_MASK); // masked by key pattern
+    expect(masked.database.customUrl).toBe('http://example.com'); // not masked
+    expect(masked.internal.debugValue).toBe(DEFAULT_MASK); // masked by path
+  });
+
+  it('should handle nested paths', () => {
+    const obj = {
+      level1: {
+        level2: {
+          level3: {
+            sensitiveData: 'secret',
+          },
+        },
+      },
+    };
+
+    const masked = maskObject(obj, {
+      additionalPaths: ['level1.level2.level3.sensitiveData'],
+    });
+
+    expect(masked.level1.level2.level3.sensitiveData).toBe(DEFAULT_MASK);
   });
 });

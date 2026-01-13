@@ -67,14 +67,24 @@ export interface MaskOptions {
   };
 
   /**
-   * Additional keys to always mask (exact match)
+   * Additional keys to always mask (exact key name match)
    */
   additionalKeys?: string[];
+
+  /**
+   * Additional paths to always mask (dot-notation, e.g., "database.url")
+   */
+  additionalPaths?: string[];
 
   /**
    * Keys to exclude from masking (exact match)
    */
   excludeKeys?: string[];
+
+  /**
+   * Paths to exclude from masking (dot-notation)
+   */
+  excludePaths?: string[];
 }
 
 /**
@@ -103,6 +113,24 @@ export function isSensitiveKey(
 
   // Check if key matches any pattern
   return activePatterns.some((pattern) => pattern.test(key));
+}
+
+/**
+ * Check if a path should be masked
+ */
+export function isSensitivePath(
+  path: string,
+  options: MaskOptions = {}
+): boolean {
+  const { additionalPaths = [], excludePaths = [] } = options;
+
+  // Check exclusions first
+  if (excludePaths.includes(path)) {
+    return false;
+  }
+
+  // Check additional paths
+  return additionalPaths.includes(path);
 }
 
 /**
@@ -166,11 +194,29 @@ function processObject(
 
   if (typeof obj === 'object') {
     const result: Record<string, unknown> = {};
+    const { excludePaths = [] } = options;
 
     for (const [key, value] of Object.entries(obj)) {
       const fullPath = currentPath ? `${currentPath}.${key}` : key;
 
-      if (isSensitiveKey(key, options)) {
+      // Check if this specific path should be excluded from masking
+      if (excludePaths.includes(fullPath)) {
+        if (value !== null && typeof value === 'object') {
+          result[key] = processObject(value, options, fullPath);
+        } else {
+          result[key] = value;
+        }
+      }
+      // Check if this specific path should be masked
+      else if (isSensitivePath(fullPath, options)) {
+        if (value !== null && typeof value === 'object') {
+          result[key] = processObject(value, options, fullPath);
+        } else {
+          result[key] = maskValue(value, options);
+        }
+      }
+      // Check if the key name matches sensitive patterns
+      else if (isSensitiveKey(key, options)) {
         // If the value is an object/array, recurse into it; otherwise mask it
         if (value !== null && typeof value === 'object') {
           result[key] = processObject(value, options, fullPath);

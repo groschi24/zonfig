@@ -118,6 +118,17 @@ const masked = config.getMasked({
 });
 ```
 
+### Additional Paths
+
+Mask specific paths using dot notation:
+
+```typescript
+const masked = config.getMasked({
+  additionalPaths: ['database.connectionUrl', 'internal.debugId'],
+});
+// database.connectionUrl will be masked regardless of key name
+```
+
 ### Exclude Keys
 
 Prevent masking for specific keys:
@@ -126,6 +137,17 @@ Prevent masking for specific keys:
 const masked = config.getMasked({
   excludeKeys: ['sessionTimeout'],  // Won't mask even though it contains "session"
 });
+```
+
+### Exclude Paths
+
+Prevent masking for specific paths:
+
+```typescript
+const masked = config.getMasked({
+  excludePaths: ['auth.token'],  // Won't mask this specific path
+});
+// auth.token won't be masked even though 'token' is a sensitive pattern
 ```
 
 ## Direct Utilities
@@ -167,6 +189,21 @@ isSensitiveKey('username');     // false
 isSensitiveKey('API_KEY');      // true
 isSensitiveKey('apiToken');     // true
 isSensitiveKey('host');         // false
+```
+
+### isSensitivePath
+
+Check if a path would be masked:
+
+```typescript
+import { isSensitivePath } from '@zonfig/zonfig';
+
+isSensitivePath('database.url', { additionalPaths: ['database.url'] });  // true
+isSensitivePath('config.secret', {});  // false (no additionalPaths)
+isSensitivePath('auth.token', {
+  additionalPaths: ['auth.token'],
+  excludePaths: ['auth.token']
+});  // false (excluded)
 ```
 
 ### maskValue

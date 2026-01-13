@@ -190,14 +190,14 @@ function interpolateObject(
  * // database.url = 'postgres://localhost:5432/mydb'
  * ```
  */
-export function interpolate(
-  config: Record<string, unknown>,
+export function interpolate<T extends Record<string, unknown>>(
+  config: T,
   options: InterpolateOptions = {}
-): Record<string, unknown> {
+): T {
   const env = options.env ?? {};
   const maxDepth = options.maxDepth ?? 10;
 
-  return interpolateObject(config, config, env, new Set(), 0, maxDepth);
+  return interpolateObject(config, config, env, new Set(), 0, maxDepth) as T;
 }
 
 /**
