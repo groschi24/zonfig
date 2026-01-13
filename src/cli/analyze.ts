@@ -209,8 +209,23 @@ export async function analyzeProject(options: AnalyzeOptions): Promise<void> {
     console.log('\n--- End Schema ---\n');
   } else {
     const outputPath = resolve(targetDir, output);
-    await writeFile(outputPath, schema);
-    console.log(`  Written to: ${outputPath}`);
+    // Ensure parent directory exists
+    try {
+      await mkdir(dirname(outputPath), { recursive: true });
+      await writeFile(outputPath, schema);
+      console.log(`  Written to: ${outputPath}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('ENOENT')) {
+        console.error(`\nError: Cannot write to ${outputPath}`);
+        console.error('The target directory does not exist.');
+      } else if (message.includes('EACCES') || message.includes('EPERM')) {
+        console.error(`\nError: Permission denied writing to ${outputPath}`);
+      } else {
+        console.error(`\nError writing output: ${message}`);
+      }
+      process.exit(1);
+    }
   }
 
   // Step 8: Generate summary report
@@ -570,7 +585,8 @@ function generateSchema(result: AnalysisResult, options: AnalyzeOptions): string
     }
 
     // Now determine group from remaining key
-    const parts = keyWithoutAppPrefix.split(/__|_/);
+    // Handle both underscore-separated (env vars) and dot-notation (JSON files)
+    const parts = keyWithoutAppPrefix.split(/__|_|\./);
 
     if (parts.length > 0) {
       const prefix = parts[0]!.toLowerCase();
@@ -620,11 +636,16 @@ function generateSchema(result: AnalysisResult, options: AnalyzeOptions): string
   for (const [group, values] of groups) {
     lines.push(`  ${group}: z.object({`);
 
+    // Deduplicate values by field name (later values override earlier)
+    const fieldMap = new Map<string, { val: ConfigValue; zodType: string }>();
     for (const val of values) {
       const fieldName = envKeyToFieldName(val.key, group);
       const zodType = getZodType(val);
-      const comment = val.isSecret ? ' // sensitive' : '';
+      fieldMap.set(fieldName, { val, zodType });
+    }
 
+    for (const [fieldName, { val, zodType }] of fieldMap) {
+      const comment = val.isSecret ? ' // sensitive' : '';
       lines.push(`    ${fieldName}: ${zodType},${comment}`);
     }
 
@@ -670,7 +691,7 @@ function generateSchema(result: AnalysisResult, options: AnalyzeOptions): string
 }
 
 /**
- * Convert env key to camelCase field name
+ * Convert env key or dot-notation key to camelCase field name
  */
 function envKeyToFieldName(key: string, group: string): string {
   // Remove common app prefixes first
@@ -683,7 +704,23 @@ function envKeyToFieldName(key: string, group: string): string {
     }
   }
 
-  // Remove group prefix
+  // Handle dot-notation keys (from JSON files): "app.name" -> "name" when group is "app"
+  const groupLower = group.toLowerCase();
+  const dotPrefix = groupLower + '.';
+  if (name.toLowerCase().startsWith(dotPrefix)) {
+    name = name.slice(dotPrefix.length);
+    // For nested dot notation like "server.host" after removing "app." prefix,
+    // convert remaining dots to camelCase
+    return name
+      .split('.')
+      .map((part, index) => {
+        if (index === 0) return part;
+        return part.charAt(0).toUpperCase() + part.slice(1);
+      })
+      .join('');
+  }
+
+  // Remove underscore-based group prefix (for env vars)
   const groupUpper = group.toUpperCase();
   const groupPrefixes = [groupUpper + '__', groupUpper + '_'];
   for (const prefix of groupPrefixes) {
@@ -697,6 +734,7 @@ function envKeyToFieldName(key: string, group: string): string {
   return name
     .toLowerCase()
     .replace(/^_+/, '') // Remove leading underscores
+    .replace(/\.+/g, '_') // Replace dots with underscores
     .replace(/__/g, '_') // Replace double underscore with single
     .replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
@@ -735,7 +773,14 @@ function getZodType(value: ConfigValue): string {
     default:
       zodType = 'z.string()';
       if (hasDefault && !value.isSecret) {
-        zodType += `.default('${value.value}')`;
+        // Escape special characters for valid JavaScript string
+        const escaped = String(value.value)
+          .replace(/\\/g, '\\\\')  // Escape backslashes first
+          .replace(/'/g, "\\'")    // Escape single quotes
+          .replace(/\n/g, '\\n')   // Escape newlines
+          .replace(/\r/g, '\\r')   // Escape carriage returns
+          .replace(/\t/g, '\\t');  // Escape tabs
+        zodType += `.default('${escaped}')`;
       }
   }
 

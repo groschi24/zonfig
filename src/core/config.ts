@@ -1,4 +1,6 @@
 import type { z } from 'zod';
+import { watch as fsWatch, type FSWatcher } from 'node:fs';
+import { resolve } from 'node:path';
 import type {
   ConfigOptions,
   Source,
@@ -6,6 +8,9 @@ import type {
   PathsOf,
   ValueAt,
   ValueProvenance,
+  ConfigEvent,
+  ConfigEventListener,
+  WatchOptions,
 } from './types.js';
 import { deepMerge, getByPath, deepFreeze } from '../utils/deep-merge.js';
 import { ConfigValidationError } from '../errors/validation.js';
@@ -15,15 +20,29 @@ import { getPlugin } from '../plugins/registry.js';
 import { PluginNotFoundError } from '../errors/validation.js';
 
 /**
- * Type-safe configuration container
+ * Type-safe configuration container with watch support
  */
 export class Config<TSchema extends z.ZodType, TData = z.infer<TSchema>> {
-  private readonly data: TData;
-  private readonly provenance: Map<string, ValueProvenance>;
+  private data: TData;
+  private provenance: Map<string, ValueProvenance>;
+  private readonly options: ConfigOptions<TSchema>;
+  private readonly context: LoaderContext;
+  private watchers: FSWatcher[] = [];
+  private listeners: Set<ConfigEventListener<TData>> = new Set();
+  private isWatching = false;
+  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private debounceDelay = 100;
 
-  private constructor(data: TData, provenance: Map<string, ValueProvenance>) {
+  private constructor(
+    data: TData,
+    provenance: Map<string, ValueProvenance>,
+    options: ConfigOptions<TSchema>,
+    context: LoaderContext
+  ) {
     this.data = deepFreeze(data as object) as TData;
     this.provenance = provenance;
+    this.options = options;
+    this.context = context;
   }
 
   /**
@@ -55,73 +74,320 @@ export class Config<TSchema extends z.ZodType, TData = z.infer<TSchema>> {
   }
 
   /**
+   * Start watching config files for changes
+   */
+  watch(options: WatchOptions = {}): void {
+    if (this.isWatching) return;
+
+    this.debounceDelay = options.debounce ?? 100;
+    this.isWatching = true;
+
+    // Get file paths to watch
+    const filePaths = this.getWatchablePaths();
+
+    for (const filePath of filePaths) {
+      try {
+        const watcher = fsWatch(filePath, (eventType) => {
+          if (eventType === 'change') {
+            this.scheduleReload();
+          }
+        });
+
+        watcher.on('error', (error) => {
+          this.emit({
+            type: 'error',
+            error: error instanceof Error ? error : new Error(String(error)),
+            source: filePath,
+          });
+        });
+
+        this.watchers.push(watcher);
+      } catch {
+        // File might not exist (optional sources), ignore
+      }
+    }
+
+    if (options.immediate) {
+      this.reload().catch((error) => {
+        this.emit({
+          type: 'error',
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
+      });
+    }
+  }
+
+  /**
+   * Stop watching config files
+   */
+  unwatch(): void {
+    if (!this.isWatching) return;
+
+    this.isWatching = false;
+
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+
+    for (const watcher of this.watchers) {
+      watcher.close();
+    }
+    this.watchers = [];
+  }
+
+  /**
+   * Add event listener
+   */
+  on(listener: ConfigEventListener<TData>): () => void {
+    this.listeners.add(listener);
+    return () => this.off(listener);
+  }
+
+  /**
+   * Remove event listener
+   */
+  off(listener: ConfigEventListener<TData>): void {
+    this.listeners.delete(listener);
+  }
+
+  /**
+   * Manually reload configuration
+   */
+  async reload(): Promise<void> {
+    const oldData = this.data;
+
+    try {
+      const { data, provenance } = await loadConfig(this.options, this.context);
+
+      // Find changed paths
+      const changedPaths = this.findChangedPaths(oldData, data);
+
+      if (changedPaths.length > 0) {
+        this.data = deepFreeze(data as object) as TData;
+        this.provenance = provenance;
+
+        this.emit({
+          type: 'change',
+          newData: this.data,
+          oldData,
+          changedPaths,
+        });
+      }
+
+      this.emit({
+        type: 'reload',
+        data: this.data,
+      });
+    } catch (error) {
+      this.emit({
+        type: 'error',
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Check if currently watching
+   */
+  get watching(): boolean {
+    return this.isWatching;
+  }
+
+  /**
+   * Get file paths that can be watched
+   */
+  private getWatchablePaths(): string[] {
+    const paths: string[] = [];
+    const sources = this.getActiveSources();
+
+    for (const source of sources) {
+      if (source.type === 'file') {
+        const filePath = resolve(this.context.cwd, source.path);
+        paths.push(filePath);
+      }
+    }
+
+    return paths;
+  }
+
+  /**
+   * Get active sources based on profile
+   */
+  private getActiveSources(): Source[] {
+    const { sources = [], profile = 'default', profiles } = this.options;
+
+    if (profiles && profile in profiles) {
+      const profileConfig = profiles[profile];
+      if (profileConfig?.sources) {
+        return profileConfig.sources;
+      }
+    }
+
+    return sources;
+  }
+
+  /**
+   * Schedule a debounced reload
+   */
+  private scheduleReload(): void {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+
+    this.debounceTimer = setTimeout(() => {
+      this.debounceTimer = null;
+      this.reload().catch((error) => {
+        this.emit({
+          type: 'error',
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
+      });
+    }, this.debounceDelay);
+  }
+
+  /**
+   * Emit event to all listeners
+   */
+  private emit(event: ConfigEvent<TData>): void {
+    for (const listener of this.listeners) {
+      try {
+        listener(event);
+      } catch {
+        // Ignore listener errors
+      }
+    }
+  }
+
+  /**
+   * Find paths that changed between old and new data
+   */
+  private findChangedPaths(oldData: TData, newData: TData): string[] {
+    const changed: string[] = [];
+
+    function compare(
+      oldObj: Record<string, unknown>,
+      newObj: Record<string, unknown>,
+      prefix: string = ''
+    ): void {
+      const allKeys = new Set([...Object.keys(oldObj), ...Object.keys(newObj)]);
+
+      for (const key of allKeys) {
+        const path = prefix ? `${prefix}.${key}` : key;
+        const oldVal = oldObj[key];
+        const newVal = newObj[key];
+
+        if (oldVal === newVal) continue;
+
+        if (
+          oldVal !== null &&
+          newVal !== null &&
+          typeof oldVal === 'object' &&
+          typeof newVal === 'object' &&
+          !Array.isArray(oldVal) &&
+          !Array.isArray(newVal)
+        ) {
+          compare(
+            oldVal as Record<string, unknown>,
+            newVal as Record<string, unknown>,
+            path
+          );
+        } else {
+          changed.push(path);
+        }
+      }
+    }
+
+    compare(
+      oldData as Record<string, unknown>,
+      newData as Record<string, unknown>
+    );
+
+    return changed;
+  }
+
+  /**
    * Create a new Config instance from options
    */
   static async create<TSchema extends z.ZodType>(
     options: ConfigOptions<TSchema>
   ): Promise<Config<TSchema>> {
-    const {
-      schema,
-      sources = [],
-      profile = 'default',
-      profiles,
-      cwd = process.cwd(),
-    } = options;
+    const cwd = options.cwd ?? process.cwd();
+    const profile = options.profile ?? 'default';
 
-    // Determine which sources to use
-    let activeSources = sources;
-    let defaults: Record<string, unknown> = {};
-
-    if (profiles && profile in profiles) {
-      const profileConfig = profiles[profile];
-      if (profileConfig?.sources) {
-        activeSources = profileConfig.sources;
-      }
-      if (profileConfig?.defaults) {
-        defaults = profileConfig.defaults;
-      }
-    }
-
-    // Create loader context
     const context: LoaderContext = {
       profile,
       cwd,
       env: process.env,
     };
 
-    // Load all sources
-    const loadedConfigs: Array<{ data: Record<string, unknown>; source: string }> = [];
+    const { data, provenance } = await loadConfig(options, context);
 
-    // Add defaults first
-    if (Object.keys(defaults).length > 0) {
-      loadedConfigs.push({ data: defaults, source: 'profile defaults' });
-    }
-
-    // Load each source
-    for (const source of activeSources) {
-      const data = await loadSource(source, context);
-      if (data && Object.keys(data).length > 0) {
-        loadedConfigs.push({ data, source: formatSourceName(source) });
-      }
-    }
-
-    // Merge all configs (later sources override earlier)
-    const merged = deepMerge<Record<string, unknown>>(
-      ...loadedConfigs.map((c) => c.data)
+    return new Config<TSchema>(
+      data as z.infer<TSchema>,
+      provenance,
+      options,
+      context
     );
-
-    // Track provenance
-    const provenance = trackProvenance(loadedConfigs);
-
-    // Validate with schema
-    const result = schema.safeParse(merged);
-
-    if (!result.success) {
-      throw new ConfigValidationError(result.error, provenance);
-    }
-
-    return new Config<TSchema>(result.data as z.infer<TSchema>, provenance);
   }
+}
+
+/**
+ * Load configuration from all sources
+ */
+async function loadConfig<TSchema extends z.ZodType>(
+  options: ConfigOptions<TSchema>,
+  context: LoaderContext
+): Promise<{ data: z.infer<TSchema>; provenance: Map<string, ValueProvenance> }> {
+  const { schema, sources = [], profile = 'default', profiles } = options;
+
+  // Determine which sources to use
+  let activeSources = sources;
+  let defaults: Record<string, unknown> = {};
+
+  if (profiles && profile in profiles) {
+    const profileConfig = profiles[profile];
+    if (profileConfig?.sources) {
+      activeSources = profileConfig.sources;
+    }
+    if (profileConfig?.defaults) {
+      defaults = profileConfig.defaults;
+    }
+  }
+
+  // Load all sources
+  const loadedConfigs: Array<{ data: Record<string, unknown>; source: string }> = [];
+
+  // Add defaults first
+  if (Object.keys(defaults).length > 0) {
+    loadedConfigs.push({ data: defaults, source: 'profile defaults' });
+  }
+
+  // Load each source
+  for (const source of activeSources) {
+    const data = await loadSource(source, context);
+    if (data && Object.keys(data).length > 0) {
+      loadedConfigs.push({ data, source: formatSourceName(source) });
+    }
+  }
+
+  // Merge all configs (later sources override earlier)
+  const merged = deepMerge<Record<string, unknown>>(
+    ...loadedConfigs.map((c) => c.data)
+  );
+
+  // Track provenance
+  const provenance = trackProvenance(loadedConfigs);
+
+  // Validate with schema
+  const result = schema.safeParse(merged);
+
+  if (!result.success) {
+    throw new ConfigValidationError(result.error, provenance);
+  }
+
+  return { data: result.data, provenance };
 }
 
 /**

@@ -16,6 +16,13 @@ export type {
   ValueAt,
   DocFormat,
   DocOptions,
+  // Watch mode types
+  ConfigEvent,
+  ConfigChangeEvent,
+  ConfigErrorEvent,
+  ConfigReloadEvent,
+  ConfigEventListener,
+  WatchOptions,
 } from './core/types.js';
 
 // Errors

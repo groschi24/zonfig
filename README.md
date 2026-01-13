@@ -13,6 +13,7 @@ A universal, type-safe configuration library for Node.js applications. Define yo
 - **Validated** - Runtime validation with clear error messages showing exactly what's wrong
 - **Documented** - Auto-generate markdown docs, JSON Schema, or .env.example from your schema
 - **Immutable** - Config is frozen at startup, preventing accidental mutations
+- **Watch mode** - Hot-reload config when files change with event-based notifications
 - **Extensible** - Plugin system for secret stores (AWS Secrets Manager, Vault, etc.)
 - **CLI included** - Generate docs, validate configs, and scaffold projects from the command line
 
@@ -478,6 +479,144 @@ Generate documentation from a Zod schema.
 - `hasPlugin(name)` - Check if plugin is registered
 - `unregisterPlugin(name)` - Remove a plugin
 - `clearPlugins()` - Remove all plugins
+
+## Watch Mode
+
+zonfig supports hot-reloading configuration when files change. This is useful during development or for applications that need to respond to config changes without restarting.
+
+### Basic Usage
+
+```typescript
+import { defineConfig, z } from '@zonfig/zonfig';
+
+const config = await defineConfig({
+  schema: z.object({
+    server: z.object({
+      port: z.number().default(3000),
+      host: z.string().default('localhost'),
+    }),
+  }),
+  sources: [
+    { type: 'file', path: './config.json' },
+  ],
+});
+
+// Start watching for file changes
+config.watch();
+
+// Listen for changes
+config.on((event) => {
+  if (event.type === 'change') {
+    console.log('Config changed:', event.changedPaths);
+    console.log('New values:', event.newData);
+  }
+});
+
+// Stop watching when done
+config.unwatch();
+```
+
+### Watch Options
+
+```typescript
+config.watch({
+  debounce: 100,    // Debounce delay in ms (default: 100)
+  immediate: true,  // Reload immediately on start (default: false)
+});
+```
+
+### Event Types
+
+```typescript
+import type { ConfigEvent } from '@zonfig/zonfig';
+
+config.on((event: ConfigEvent) => {
+  switch (event.type) {
+    case 'change':
+      // Config values changed
+      console.log('Changed paths:', event.changedPaths);
+      console.log('Old data:', event.oldData);
+      console.log('New data:', event.newData);
+      break;
+
+    case 'reload':
+      // Config was reloaded (even if nothing changed)
+      console.log('Reloaded:', event.data);
+      break;
+
+    case 'error':
+      // Error during reload (validation failed, file read error, etc.)
+      console.error('Config error:', event.error);
+      if (event.source) {
+        console.error('Source:', event.source);
+      }
+      break;
+  }
+});
+```
+
+### Manual Reload
+
+You can also manually trigger a reload without watching:
+
+```typescript
+// Reload and update config
+await config.reload();
+
+// Check current values
+console.log(config.get('server.port'));
+```
+
+### Watch Methods
+
+- `config.watch(options?)` - Start watching config files
+- `config.unwatch()` - Stop watching
+- `config.on(listener)` - Add event listener (returns unsubscribe function)
+- `config.off(listener)` - Remove event listener
+- `config.reload()` - Manually reload configuration
+- `config.watching` - Check if currently watching (boolean)
+
+### Removing Listeners
+
+```typescript
+// Method 1: Use the returned unsubscribe function
+const unsubscribe = config.on((event) => {
+  console.log(event);
+});
+unsubscribe();
+
+// Method 2: Use off() with the same listener reference
+const listener = (event) => console.log(event);
+config.on(listener);
+config.off(listener);
+```
+
+## Performance
+
+zonfig is designed for speed and efficiency. Here are benchmark results from stress testing:
+
+> **Test System:** MacBook Pro 13-inch (M1, 2020) · Apple M1 · 16 GB RAM · macOS Sequoia 15.5
+
+| Scenario | Time |
+|----------|------|
+| Load 1,000 keys | 5ms |
+| 50 levels deep nesting | <1ms |
+| Merge 20 sources | 1ms |
+| 100 rapid reloads | 12ms |
+| Parse ~500KB JSON file | 26ms |
+| Load 10 async plugins | 111ms |
+| Parse 1,000 item YAML | 42ms |
+| 500 environment variables | 6ms |
+| Generate docs (200 fields) | 2ms |
+| 50 concurrent config instances | <1ms |
+
+### Key Performance Characteristics
+
+- **Fast startup** - Most configurations load in under 10ms
+- **Efficient merging** - Deep merge algorithm handles complex nested structures
+- **Low memory** - Configurations are frozen, preventing memory leaks from mutations
+- **Parallel loading** - Multiple config instances can be created concurrently
+- **Optimized validation** - Zod schemas are validated once at load time
 
 ## TypeScript Support
 

@@ -374,5 +374,23 @@
       "Required vs Optional",
       "Coercion"
     ]
+  },
+  {
+    "href": "/docs/watch-mode",
+    "title": "watch-mode",
+    "section": "Docs",
+    "content": "Watch Mode zonfig supports hot-reloading configuration when files change. This is useful during development or for applications that need to respond to config changes without restarting. Basic Usage Watch Options | Option | Type | Default | Description | |--------|------|---------|-------------| | debounce | number | 100 | Delay in milliseconds before reloading after a file change | | immediate | boolean | false | Whether to reload immediately when watch starts | Event Types The on() method receives events with different types: Change Event Emitted when configuration values actually change. Reload Event Emitted after every reload, even if no values changed. Error Event Emitted when reload fails (validation error, file not found, etc.). Manual Reload You can manually trigger a reload without watching: This is useful for: - Reloading on demand (e.g., after receiving a signal) - Testing configuration changes - One-time refresh without continuous watching Watch Methods | Method | Description | |--------|-------------| | config.watch(options?) | Start watching config files | | config.unwatch() | Stop watching | | config.on(listener) | Add event listener (returns unsubscribe function) | | config.off(listener) | Remove event listener | | config.reload() | Manually reload configuration | | config.watching | Check if currently watching (boolean) | Removing Listeners Two ways to remove event listeners: Practical Examples Graceful Server Restart Feature Flags Logging Changes Error Handling When a reload fails, the config keeps the previous valid values: Performance Watch mode is optimized for efficiency: - File changes are debounced to prevent rapid reloads - Only changed paths are tracked and reported - Validation happens once per reload - Frozen objects prevent accidental mutations Next Steps - Config Object - Available methods on the config object - Validation - How validation errors are handled - File Sources - Configure which files to watch",
+    "headings": [
+      "Watch Mode",
+      "Basic Usage",
+      "Watch Options",
+      "Event Types",
+      "Change Event",
+      "Reload Event",
+      "Error Event",
+      "Manual Reload",
+      "Watch Methods",
+      "Removing Listeners"
+    ]
   }
 ]

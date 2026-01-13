@@ -6,7 +6,7 @@ import { generateDocs } from '../documentation/index.js';
 import { analyzeProject } from './analyze.js';
 import { z } from 'zod';
 
-const VERSION = '0.1.2';
+const VERSION = '0.1.3';
 
 const HELP = `
 zonfig - Universal typed configuration CLI
@@ -271,8 +271,21 @@ async function commandInit(args: ParsedArgs): Promise<void> {
   console.log(`Initializing zonfig in: ${targetDir}\n`);
 
   // Create directories
-  await mkdir(resolve(targetDir, 'src'), { recursive: true });
-  await mkdir(resolve(targetDir, 'config'), { recursive: true });
+  try {
+    await mkdir(resolve(targetDir, 'src'), { recursive: true });
+    await mkdir(resolve(targetDir, 'config'), { recursive: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('EACCES') || message.includes('EPERM')) {
+      console.error(`Error: Permission denied. Cannot create directories in ${targetDir}`);
+      console.error('Please check that you have write permissions for this directory.');
+    } else if (message.includes('ENOENT')) {
+      console.error(`Error: Directory not found: ${targetDir}`);
+    } else {
+      console.error(`Error creating directories: ${message}`);
+    }
+    process.exit(1);
+  }
 
   // Create config schema file
   const configTs = `import { defineConfig, z, ConfigValidationError } from '@zonfig/zonfig';

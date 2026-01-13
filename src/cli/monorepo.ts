@@ -176,8 +176,8 @@ async function findPackageDirectories(
     }
   }
 
-  if (tool === 'nx') {
-    // Nx typically uses apps/ and libs/
+  if (tool === 'nx' && patterns.length === 0) {
+    // Nx typically uses apps/ and libs/ when no workspaces defined
     patterns.push('apps/*', 'libs/*', 'packages/*');
   }
 
@@ -186,8 +186,11 @@ async function findPackageDirectories(
     patterns.push('packages/*', 'apps/*', 'libs/*', 'services/*');
   }
 
+  // Deduplicate patterns
+  const uniquePatterns = [...new Set(patterns)];
+
   // Resolve patterns to actual directories
-  for (const pattern of patterns) {
+  for (const pattern of uniquePatterns) {
     // Simple glob handling for common patterns
     if (pattern.endsWith('/*')) {
       const baseDir = pattern.slice(0, -2);

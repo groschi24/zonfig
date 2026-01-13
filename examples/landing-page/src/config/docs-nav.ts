@@ -27,6 +27,7 @@ export const docsNav: NavSection[] = [
       { title: 'Configuration Sources', href: '/docs/sources', icon: 'layers' },
       { title: 'Environment Profiles', href: '/docs/profiles', icon: 'git-branch' },
       { title: 'Validation', href: '/docs/validation', icon: 'check-circle' },
+      { title: 'Watch Mode', href: '/docs/watch-mode', icon: 'refresh-cw' },
     ],
   },
   {
@@ -50,10 +51,10 @@ export const docsNav: NavSection[] = [
     title: 'CLI',
     items: [
       { title: 'Overview', href: '/docs/cli', icon: 'terminal' },
-      { title: 'init', href: '/docs/cli/init' },
-      { title: 'validate', href: '/docs/cli/validate' },
-      { title: 'docs', href: '/docs/cli/docs' },
-      { title: 'analyze', href: '/docs/cli/analyze' },
+      { title: 'init', href: '/docs/cli/init', icon: 'plus-circle' },
+      { title: 'validate', href: '/docs/cli/validate', icon: 'shield' },
+      { title: 'docs', href: '/docs/cli/docs', icon: 'book' },
+      { title: 'analyze', href: '/docs/cli/analyze', icon: 'search' },
     ],
   },
   {

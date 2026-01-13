@@ -165,3 +165,58 @@ export interface DocOptions {
   includeDefaults?: boolean;
   includeSensitive?: boolean;
 }
+
+/**
+ * Watch mode event types
+ */
+export type ConfigEventType = 'change' | 'error' | 'reload';
+
+/**
+ * Config change event data
+ */
+export interface ConfigChangeEvent<TData = unknown> {
+  type: 'change';
+  newData: TData;
+  oldData: TData;
+  changedPaths: string[];
+}
+
+/**
+ * Config error event data
+ */
+export interface ConfigErrorEvent {
+  type: 'error';
+  error: Error;
+  source?: string;
+}
+
+/**
+ * Config reload event data
+ */
+export interface ConfigReloadEvent<TData = unknown> {
+  type: 'reload';
+  data: TData;
+}
+
+/**
+ * Union of all config events
+ */
+export type ConfigEvent<TData = unknown> =
+  | ConfigChangeEvent<TData>
+  | ConfigErrorEvent
+  | ConfigReloadEvent<TData>;
+
+/**
+ * Event listener type
+ */
+export type ConfigEventListener<TData = unknown> = (event: ConfigEvent<TData>) => void;
+
+/**
+ * Watch options
+ */
+export interface WatchOptions {
+  /** Debounce delay in milliseconds (default: 100) */
+  debounce?: number;
+  /** Whether to reload immediately on start (default: false) */
+  immediate?: boolean;
+}

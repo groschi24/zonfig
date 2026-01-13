@@ -1,0 +1,256 @@
+# Watch Mode
+
+zonfig supports hot-reloading configuration when files change. This is useful during development or for applications that need to respond to config changes without restarting.
+
+## Basic Usage
+
+```typescript
+import { defineConfig, z } from '@zonfig/zonfig';
+
+const config = await defineConfig({
+  schema: z.object({
+    server: z.object({
+      port: z.number().default(3000),
+      host: z.string().default('localhost'),
+    }),
+  }),
+  sources: [
+    { type: 'file', path: './config.json' },
+  ],
+});
+
+// Start watching for file changes
+config.watch();
+
+// Listen for changes
+config.on((event) => {
+  if (event.type === 'change') {
+    console.log('Config changed:', event.changedPaths);
+    console.log('New values:', event.newData);
+  }
+});
+
+// Stop watching when done
+config.unwatch();
+```
+
+## Watch Options
+
+```typescript
+config.watch({
+  debounce: 100,    // Debounce delay in ms (default: 100)
+  immediate: true,  // Reload immediately on start (default: false)
+});
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `debounce` | `number` | `100` | Delay in milliseconds before reloading after a file change |
+| `immediate` | `boolean` | `false` | Whether to reload immediately when watch starts |
+
+## Event Types
+
+The `on()` method receives events with different types:
+
+```typescript
+import type { ConfigEvent } from '@zonfig/zonfig';
+
+config.on((event: ConfigEvent) => {
+  switch (event.type) {
+    case 'change':
+      // Config values changed
+      console.log('Changed paths:', event.changedPaths);
+      console.log('Old data:', event.oldData);
+      console.log('New data:', event.newData);
+      break;
+
+    case 'reload':
+      // Config was reloaded (even if nothing changed)
+      console.log('Reloaded:', event.data);
+      break;
+
+    case 'error':
+      // Error during reload (validation failed, file read error, etc.)
+      console.error('Config error:', event.error);
+      if (event.source) {
+        console.error('Source:', event.source);
+      }
+      break;
+  }
+});
+```
+
+### Change Event
+
+Emitted when configuration values actually change.
+
+```typescript
+interface ConfigChangeEvent {
+  type: 'change';
+  changedPaths: string[];  // ['server.port', 'database.url']
+  oldData: T;              // Previous config
+  newData: T;              // New config
+}
+```
+
+### Reload Event
+
+Emitted after every reload, even if no values changed.
+
+```typescript
+interface ConfigReloadEvent {
+  type: 'reload';
+  data: T;  // Current config
+}
+```
+
+### Error Event
+
+Emitted when reload fails (validation error, file not found, etc.).
+
+```typescript
+interface ConfigErrorEvent {
+  type: 'error';
+  error: Error;
+  source?: string;  // File path that caused the error
+}
+```
+
+## Manual Reload
+
+You can manually trigger a reload without watching:
+
+```typescript
+// Reload and update config
+await config.reload();
+
+// Check current values
+console.log(config.get('server.port'));
+```
+
+This is useful for:
+- Reloading on demand (e.g., after receiving a signal)
+- Testing configuration changes
+- One-time refresh without continuous watching
+
+## Watch Methods
+
+| Method | Description |
+|--------|-------------|
+| `config.watch(options?)` | Start watching config files |
+| `config.unwatch()` | Stop watching |
+| `config.on(listener)` | Add event listener (returns unsubscribe function) |
+| `config.off(listener)` | Remove event listener |
+| `config.reload()` | Manually reload configuration |
+| `config.watching` | Check if currently watching (boolean) |
+
+## Removing Listeners
+
+Two ways to remove event listeners:
+
+```typescript
+// Method 1: Use the returned unsubscribe function
+const unsubscribe = config.on((event) => {
+  console.log(event);
+});
+unsubscribe();
+
+// Method 2: Use off() with the same listener reference
+const listener = (event) => console.log(event);
+config.on(listener);
+config.off(listener);
+```
+
+## Practical Examples
+
+### Graceful Server Restart
+
+```typescript
+import { createServer } from 'http';
+
+let server = createServer(handler);
+
+config.on((event) => {
+  if (event.type === 'change' && event.changedPaths.includes('server.port')) {
+    console.log('Port changed, restarting server...');
+    server.close(() => {
+      server = createServer(handler);
+      server.listen(config.get('server.port'));
+    });
+  }
+});
+
+config.watch();
+```
+
+### Feature Flags
+
+```typescript
+const schema = z.object({
+  features: z.object({
+    darkMode: z.boolean().default(false),
+    betaFeatures: z.boolean().default(false),
+  }),
+});
+
+config.on((event) => {
+  if (event.type === 'change') {
+    // Update UI when features change
+    updateFeatureFlags(config.get('features'));
+  }
+});
+
+config.watch();
+```
+
+### Logging Changes
+
+```typescript
+config.on((event) => {
+  if (event.type === 'change') {
+    for (const path of event.changedPaths) {
+      const oldValue = getByPath(event.oldData, path);
+      const newValue = getByPath(event.newData, path);
+      console.log(`Config changed: ${path}`);
+      console.log(`  Old: ${JSON.stringify(oldValue)}`);
+      console.log(`  New: ${JSON.stringify(newValue)}`);
+    }
+  }
+
+  if (event.type === 'error') {
+    console.error('Config reload failed:', event.error.message);
+  }
+});
+```
+
+## Error Handling
+
+When a reload fails, the config keeps the previous valid values:
+
+```typescript
+config.on((event) => {
+  if (event.type === 'error') {
+    // Config still has the last valid values
+    console.error('Failed to reload:', event.error.message);
+    console.log('Using previous config:', config.getAll());
+
+    // Optionally notify monitoring
+    alertOps('Config reload failed', event.error);
+  }
+});
+```
+
+## Performance
+
+Watch mode is optimized for efficiency:
+
+- File changes are debounced to prevent rapid reloads
+- Only changed paths are tracked and reported
+- Validation happens once per reload
+- Frozen objects prevent accidental mutations
+
+## Next Steps
+
+- [Config Object](/docs/api/config) - Available methods on the config object
+- [Validation](/docs/validation) - How validation errors are handled
+- [File Sources](/docs/sources/file) - Configure which files to watch
