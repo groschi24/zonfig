@@ -499,7 +499,8 @@ config.get('other');  // TypeScript error!
 ## Requirements
 
 - Node.js >= 18.0.0
-- Zod >= 3.22.0
+
+Zod is bundled with zonfig - no need to install it separately.
 
 ## License
 
