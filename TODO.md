@@ -18,7 +18,7 @@
   - `@zonfig/plugin-dotenv-vault` - Dotenv Vault
   - `@zonfig/plugin-gcp-secrets` - Google Cloud Secret Manager
 
-- [ ] **Secrets masking** - Auto-redact sensitive values
+- [x] **Secrets masking** - Auto-redact sensitive values
   - Detect sensitive keys (password, secret, token, apiKey, etc.)
   - Mask in error messages and logs
   - `config.getMasked()` for safe logging
@@ -96,3 +96,5 @@
 - [x] Auto-documentation (markdown, json-schema, env-example)
 - [x] Monorepo support in CLI
 - [x] Watch mode with file watching, debouncing, and event system
+- [x] Variable interpolation with `${VAR}` syntax and cycle detection
+- [x] Secrets masking with `config.getMasked()` and utility functions

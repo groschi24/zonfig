@@ -29,6 +29,7 @@ export const docsNav: NavSection[] = [
       { title: 'Validation', href: '/docs/validation', icon: 'check-circle' },
       { title: 'Variable Interpolation', href: '/docs/interpolation', icon: 'dollar-sign' },
       { title: 'Watch Mode', href: '/docs/watch-mode', icon: 'refresh-cw' },
+      { title: 'Secrets Masking', href: '/docs/secrets-masking', icon: 'eye-off' },
     ],
   },
   {

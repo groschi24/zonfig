@@ -1,0 +1,313 @@
+# Secrets Masking
+
+zonfig can automatically mask sensitive values for safe logging and debugging. This prevents accidental exposure of passwords, API keys, tokens, and other secrets in logs or error messages.
+
+## Basic Usage
+
+```typescript
+import { defineConfig, z } from '@zonfig/zonfig';
+
+const config = await defineConfig({
+  schema: z.object({
+    database: z.object({
+      host: z.string(),
+      password: z.string(),
+    }),
+    api: z.object({
+      key: z.string(),
+      endpoint: z.string(),
+    }),
+  }),
+  sources: [{ type: 'env' }],
+});
+
+// Get masked config for safe logging
+const masked = config.getMasked();
+console.log(masked);
+// {
+//   database: { host: 'localhost', password: '********' },
+//   api: { key: '********', endpoint: 'https://api.example.com' }
+// }
+
+// Original values are still accessible
+console.log(config.get('database.password')); // actual password
+```
+
+## Detected Sensitive Keys
+
+By default, these patterns are automatically detected as sensitive:
+
+| Pattern | Examples |
+|---------|----------|
+| `password` | `password`, `userPassword`, `DB_PASSWORD` |
+| `secret` | `secret`, `clientSecret`, `JWT_SECRET` |
+| `token` | `token`, `accessToken`, `API_TOKEN` |
+| `apiKey` / `api_key` | `apiKey`, `api_key`, `API_KEY` |
+| `auth` | `auth`, `authToken`, `AUTH_HEADER` |
+| `credential` | `credential`, `credentials` |
+| `privateKey` | `privateKey`, `private_key` |
+| `accessKey` | `accessKey`, `access_key` |
+| `bearer` | `bearer`, `bearerToken` |
+| `jwt` | `jwt`, `jwtSecret`, `JWT_TOKEN` |
+| `session` | `session`, `sessionId` |
+| `cookie` | `cookie`, `sessionCookie` |
+| `encryptionKey` | `encryptionKey`, `encryption_key` |
+| `signingKey` | `signingKey`, `signing_key` |
+| `clientSecret` | `clientSecret`, `client_secret` |
+| `connectionString` | `connectionString`, `connection_string` |
+| `dsn` | `dsn`, `DATABASE_DSN` |
+
+## Masking Options
+
+### Custom Patterns
+
+Add your own patterns for sensitive keys:
+
+```typescript
+const masked = config.getMasked({
+  patterns: [/^my_secret_/i, /internal/i],
+});
+```
+
+### Replace Default Patterns
+
+Override the default patterns entirely:
+
+```typescript
+const masked = config.getMasked({
+  patterns: [/password/i, /token/i],
+  replacePatterns: true,  // Only use your patterns
+});
+```
+
+### Custom Mask String
+
+Change the mask character sequence:
+
+```typescript
+const masked = config.getMasked({
+  mask: '[REDACTED]',
+});
+// { password: '[REDACTED]' }
+```
+
+### Partial Value Display
+
+Show the first and/or last characters:
+
+```typescript
+const masked = config.getMasked({
+  showPartial: { first: 2, last: 2 },
+});
+// { password: 'se********23' }
+
+// Show only last 4 characters
+const masked = config.getMasked({
+  showPartial: { last: 4 },
+});
+// { apiKey: '********abc1' }
+```
+
+### Additional Keys
+
+Mask specific keys that don't match patterns:
+
+```typescript
+const masked = config.getMasked({
+  additionalKeys: ['internalId', 'debugToken', 'tempCode'],
+});
+```
+
+### Exclude Keys
+
+Prevent masking for specific keys:
+
+```typescript
+const masked = config.getMasked({
+  excludeKeys: ['sessionTimeout'],  // Won't mask even though it contains "session"
+});
+```
+
+## Direct Utilities
+
+You can use the masking functions directly without a config instance:
+
+### maskObject
+
+Mask all sensitive values in an object:
+
+```typescript
+import { maskObject } from '@zonfig/zonfig';
+
+const masked = maskObject({
+  username: 'admin',
+  password: 'secret123',
+  apiToken: 'tok_abc123',
+  settings: {
+    authKey: 'key_xyz',
+  },
+});
+// {
+//   username: 'admin',
+//   password: '********',
+//   apiToken: '********',
+//   settings: { authKey: '********' }
+// }
+```
+
+### isSensitiveKey
+
+Check if a key would be masked:
+
+```typescript
+import { isSensitiveKey } from '@zonfig/zonfig';
+
+isSensitiveKey('password');     // true
+isSensitiveKey('username');     // false
+isSensitiveKey('API_KEY');      // true
+isSensitiveKey('apiToken');     // true
+isSensitiveKey('host');         // false
+```
+
+### maskValue
+
+Mask a single value:
+
+```typescript
+import { maskValue } from '@zonfig/zonfig';
+
+maskValue('secret123');
+// '********'
+
+maskValue('secret123', { showPartial: { first: 2, last: 2 } });
+// 'se********23'
+
+maskValue('secret123', { mask: '[HIDDEN]' });
+// '[HIDDEN]'
+```
+
+### maskForLog
+
+Format a key-value pair for logging:
+
+```typescript
+import { maskForLog } from '@zonfig/zonfig';
+
+maskForLog('password', 'secret123');
+// 'password: ********'
+
+maskForLog('username', 'admin');
+// 'username: admin'
+
+maskForLog('apiKey', 'key_abc', { showPartial: { last: 3 } });
+// 'apiKey: ********abc'
+```
+
+### extractSensitiveValues
+
+Get all sensitive values from a config (useful for error masking):
+
+```typescript
+import { extractSensitiveValues } from '@zonfig/zonfig';
+
+const secrets = extractSensitiveValues({
+  database: {
+    host: 'localhost',
+    password: 'dbpass123',
+  },
+  api: {
+    endpoint: 'https://api.example.com',
+    token: 'tok_xyz',
+  },
+});
+// ['dbpass123', 'tok_xyz']
+```
+
+### maskErrorMessage
+
+Mask sensitive values in error messages:
+
+```typescript
+import { maskErrorMessage, extractSensitiveValues } from '@zonfig/zonfig';
+
+const config = {
+  database: { password: 'secret123' },
+};
+
+const sensitiveValues = extractSensitiveValues(config);
+
+try {
+  throw new Error('Connection failed with password: secret123');
+} catch (err) {
+  const safeMessage = maskErrorMessage(err.message, sensitiveValues);
+  console.error(safeMessage);
+  // 'Connection failed with password: ********'
+}
+```
+
+## Practical Examples
+
+### Safe Logging
+
+```typescript
+import { defineConfig, z } from '@zonfig/zonfig';
+
+const config = await defineConfig({
+  schema: z.object({
+    database: z.object({
+      host: z.string(),
+      port: z.number(),
+      password: z.string(),
+    }),
+    redis: z.object({
+      url: z.string(),
+      authToken: z.string(),
+    }),
+  }),
+  sources: [{ type: 'env' }],
+});
+
+// Log safely
+console.log('Config loaded:', JSON.stringify(config.getMasked(), null, 2));
+
+// Or with partial reveal for debugging
+console.log('Debug config:', JSON.stringify(config.getMasked({
+  showPartial: { first: 2, last: 2 },
+}), null, 2));
+```
+
+### Error Handling with Masking
+
+```typescript
+import { defineConfig, extractSensitiveValues, maskErrorMessage } from '@zonfig/zonfig';
+
+const config = await defineConfig({ schema, sources });
+const sensitiveValues = extractSensitiveValues(config.getAll());
+
+process.on('uncaughtException', (error) => {
+  const safeMessage = maskErrorMessage(error.message, sensitiveValues);
+  console.error('Uncaught error:', safeMessage);
+  // Report to error tracking service safely
+});
+```
+
+### Debugging with Masked Output
+
+```typescript
+function debugConnection(config) {
+  const masked = config.getMasked({
+    showPartial: { last: 4 },  // Show last 4 chars for identification
+  });
+
+  console.log('Connecting with:');
+  console.log(`  Host: ${masked.database.host}`);
+  console.log(`  Password: ${masked.database.password}`);
+  // Output: Password: ********3456
+}
+```
+
+## Next Steps
+
+- [Error Handling](/docs/error-handling) - Handle validation errors safely
+- [Plugins](/docs/plugins) - Load secrets from external stores
+- [Watch Mode](/docs/watch-mode) - Hot-reload configuration

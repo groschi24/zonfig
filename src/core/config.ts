@@ -14,6 +14,7 @@ import type {
 } from './types.js';
 import { deepMerge, getByPath, deepFreeze } from '../utils/deep-merge.js';
 import { interpolate } from '../utils/interpolate.js';
+import { maskObject, type MaskOptions } from '../utils/mask.js';
 import { ConfigValidationError } from '../errors/validation.js';
 import { EnvLoader } from '../loaders/env.js';
 import { FileLoader } from '../loaders/file.js';
@@ -58,6 +59,14 @@ export class Config<TSchema extends z.ZodType, TData = z.infer<TSchema>> {
    */
   getAll(): Readonly<TData> {
     return this.data;
+  }
+
+  /**
+   * Get the configuration with sensitive values masked
+   * Safe for logging and debugging
+   */
+  getMasked(options: MaskOptions = {}): TData {
+    return maskObject(this.data as Record<string, unknown>, options) as TData;
   }
 
   /**
