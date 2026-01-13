@@ -25,15 +25,16 @@
 
 ## Medium Priority
 
-- [ ] **Config references** - Reference other config values
+- [x] **Config references** - Reference other config values
   - `server.url: "${server.host}:${server.port}"`
   - Lazy evaluation after all sources merged
-  - Type-safe references
+  - *(Included in Variable Interpolation feature)*
 
-- [ ] **Encrypted configs** - Encrypt sensitive values at rest
-  - SOPS-compatible encryption
+- [x] **Encrypted configs** - Encrypt sensitive values at rest
+  - AES-256-GCM encryption with scrypt key derivation
   - `zonfig encrypt` / `zonfig decrypt` CLI commands
-  - Support for AWS KMS, GCP KMS, age, PGP
+  - Auto-decrypt support in config loading
+  - Support for AWS KMS, GCP KMS, age, PGP (future: via plugins)
 
 - [ ] **Schema migrations** - Help when schema changes
   - Detect breaking changes between versions
@@ -97,4 +98,6 @@
 - [x] Monorepo support in CLI
 - [x] Watch mode with file watching, debouncing, and event system
 - [x] Variable interpolation with `${VAR}` syntax and cycle detection
+- [x] Config references (part of variable interpolation)
 - [x] Secrets masking with `config.getMasked()` and utility functions
+- [x] Encrypted configs with AES-256-GCM, CLI commands, and auto-decrypt in config loading

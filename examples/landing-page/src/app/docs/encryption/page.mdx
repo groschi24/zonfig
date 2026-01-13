@@ -1,0 +1,399 @@
+# Encryption
+
+zonfig supports encrypting sensitive configuration values at rest using AES-256-GCM encryption. This allows you to safely commit encrypted config files to version control while keeping sensitive values secure.
+
+## Encrypting Config Files (CLI)
+
+Use the CLI to encrypt sensitive values in your config files:
+
+```bash
+# Set the encryption key as an environment variable
+export ZONFIG_ENCRYPTION_KEY="your-32-char-encryption-key-here"
+
+# Encrypt sensitive values in a config file
+npx zonfig encrypt -c ./config/production.json
+
+# Or provide the key inline
+npx zonfig encrypt -c ./config.json -k "your-encryption-key"
+
+# Encrypt specific paths only
+npx zonfig encrypt -c ./config.json --paths "database.password,api.token"
+
+# Output to a different file
+npx zonfig encrypt -c ./config.json -o ./config.encrypted.json
+```
+
+### Auto-Detected Sensitive Keys
+
+By default, the encrypt command auto-detects sensitive keys:
+
+| Pattern | Examples |
+|---------|----------|
+| `password` | `password`, `userPassword`, `DB_PASSWORD` |
+| `secret` | `secret`, `clientSecret`, `JWT_SECRET` |
+| `token` | `token`, `accessToken`, `API_TOKEN` |
+| `apiKey` / `api_key` | `apiKey`, `api_key`, `API_KEY` |
+| `privateKey` | `privateKey`, `private_key` |
+| `accessKey` | `accessKey`, `access_key` |
+| `credential` | `credential`, `credentials` |
+| `encryptionKey` | `encryptionKey`, `encryption_key` |
+| `signingKey` | `signingKey`, `signing_key` |
+| `clientSecret` | `clientSecret`, `client_secret` |
+| `connectionString` | `connectionString`, `connection_string` |
+
+## Encrypted Value Format
+
+Encrypted values are stored with a special prefix for easy identification:
+
+```json
+{
+  "database": {
+    "host": "localhost",
+    "password": "ENC[AES256_GCM,salt:iv:tag:encryptedData]"
+  }
+}
+```
+
+The format includes:
+- **salt** - Random 32-byte salt for key derivation
+- **iv** - Random 16-byte initialization vector
+- **tag** - Authentication tag for integrity verification
+- **encryptedData** - The encrypted value
+
+## Decrypting Config Files (CLI)
+
+```bash
+# Decrypt all encrypted values
+npx zonfig decrypt -c ./config.encrypted.json
+
+# Or with inline key
+npx zonfig decrypt -c ./config.encrypted.json -k "your-encryption-key"
+
+# Output to a different file
+npx zonfig decrypt -c ./config.encrypted.json -o ./config.decrypted.json
+```
+
+## Auto-Decryption in Config Loading
+
+zonfig automatically decrypts encrypted values when loading configuration if an encryption key is available.
+
+### Using Environment Variable
+
+```typescript
+import { defineConfig, z } from '@zonfig/zonfig';
+
+// Set ZONFIG_ENCRYPTION_KEY in your environment
+// export ZONFIG_ENCRYPTION_KEY="your-encryption-key"
+
+const config = await defineConfig({
+  schema: z.object({
+    database: z.object({
+      host: z.string(),
+      password: z.string(),
+    }),
+  }),
+  sources: [
+    { type: 'file', path: './config.encrypted.json' },
+  ],
+  // Auto-decryption happens automatically when key is in env
+});
+
+// Values are decrypted transparently
+console.log(config.get('database.password')); // plaintext value
+```
+
+### Providing Key Explicitly
+
+```typescript
+const config = await defineConfig({
+  schema,
+  sources: [{ type: 'file', path: './config.encrypted.json' }],
+  decrypt: { key: 'your-encryption-key' },
+});
+```
+
+### Disabling Auto-Decryption
+
+```typescript
+const config = await defineConfig({
+  schema,
+  sources: [{ type: 'file', path: './config.encrypted.json' }],
+  decrypt: false,
+});
+// Encrypted values remain as ENC[...] strings
+```
+
+## Programmatic Encryption
+
+You can encrypt and decrypt values programmatically:
+
+### encryptValue / decryptValue
+
+Encrypt and decrypt individual values:
+
+```typescript
+import { encryptValue, decryptValue, isEncrypted } from '@zonfig/zonfig';
+
+const key = 'your-encryption-key';
+
+// Encrypt a value
+const encrypted = encryptValue('my-secret-password', key);
+// → "ENC[AES256_GCM,...]"
+
+// Check if encrypted
+isEncrypted(encrypted);  // true
+isEncrypted('plain');    // false
+
+// Decrypt a value
+const decrypted = decryptValue(encrypted, key);
+// → "my-secret-password"
+```
+
+### encryptObject / decryptObject
+
+Encrypt and decrypt entire config objects:
+
+```typescript
+import { encryptObject, decryptObject } from '@zonfig/zonfig';
+
+const config = {
+  database: {
+    host: 'localhost',
+    password: 'secret123',
+    connectionString: 'postgres://user:pass@localhost/db',
+  },
+  api: {
+    endpoint: 'https://api.example.com',
+    token: 'my-api-token',
+  },
+};
+
+// Encrypt all sensitive values
+const encrypted = encryptObject(config, { key: 'your-key' });
+// database.password, database.connectionString, api.token are encrypted
+// database.host and api.endpoint remain plain
+
+// Decrypt all encrypted values
+const decrypted = decryptObject(encrypted, { key: 'your-key' });
+// All values back to plaintext
+```
+
+### hasEncryptedValues / countEncryptedValues
+
+Check for encrypted values in an object:
+
+```typescript
+import { hasEncryptedValues, countEncryptedValues } from '@zonfig/zonfig';
+
+hasEncryptedValues(encrypted);   // true
+countEncryptedValues(encrypted); // 3
+```
+
+## Encryption Options
+
+### Encrypt Specific Paths Only
+
+```typescript
+const encrypted = encryptObject(config, {
+  key: 'your-key',
+  paths: ['database.password', 'api.secret'],
+});
+// Only these specific paths are encrypted
+```
+
+### Additional Keys to Encrypt
+
+Add extra key names beyond the defaults:
+
+```typescript
+const encrypted = encryptObject(config, {
+  key: 'your-key',
+  additionalKeys: ['myCustomSecret', 'internalToken'],
+});
+```
+
+### Exclude Keys from Encryption
+
+Prevent specific key names from being encrypted:
+
+```typescript
+const encrypted = encryptObject(config, {
+  key: 'your-key',
+  excludeKeys: ['publicToken'],
+});
+// Any key named 'publicToken' won't be encrypted
+// even if it matches sensitive patterns
+```
+
+### Exclude Paths from Encryption
+
+Prevent specific paths from being encrypted:
+
+```typescript
+const encrypted = encryptObject(config, {
+  key: 'your-key',
+  excludePaths: ['api.publicToken', 'cache.secret'],
+});
+// These specific paths won't be encrypted
+```
+
+### Combine Options
+
+```typescript
+const encrypted = encryptObject(config, {
+  key: 'your-key',
+  additionalKeys: ['customSecret'],
+  excludeKeys: ['publicToken'],
+  excludePaths: ['database.connectionString'],
+  useSensitivePatterns: true,  // Use default patterns (default)
+});
+```
+
+### Disable Default Patterns
+
+Only encrypt explicitly specified paths:
+
+```typescript
+const encrypted = encryptObject(config, {
+  key: 'your-key',
+  paths: ['only.these.paths'],
+  useSensitivePatterns: false,
+});
+```
+
+## Error Handling
+
+```typescript
+import { EncryptionError } from '@zonfig/zonfig';
+
+try {
+  const decrypted = decryptValue(encrypted, 'wrong-key');
+} catch (error) {
+  if (error instanceof EncryptionError) {
+    console.error('Decryption failed:', error.message);
+    // "Decryption failed - invalid key or corrupted data"
+  }
+}
+```
+
+Common errors:
+- **Encryption key is required** - No key provided
+- **Value is not encrypted** - Tried to decrypt a non-encrypted value
+- **Invalid encrypted value format** - Corrupted or malformed encrypted value
+- **Decryption failed - invalid key or corrupted data** - Wrong key or tampered data
+
+## Security Best Practices
+
+### Key Management
+
+- **Use strong keys** - At least 32 characters with mixed characters
+- **Environment variables** - Store keys in `ZONFIG_ENCRYPTION_KEY` env var
+- **Secret managers** - Use AWS Secrets Manager, HashiCorp Vault, etc.
+- **Never commit keys** - Add `.env` to `.gitignore`
+
+### Safe Workflow
+
+```bash
+# Development - use local .env file (gitignored)
+echo "ZONFIG_ENCRYPTION_KEY=dev-key-32-chars-minimum-here" > .env
+
+# CI/CD - inject via secrets
+# GitHub Actions: ${{ secrets.ZONFIG_ENCRYPTION_KEY }}
+# GitLab CI: $ZONFIG_ENCRYPTION_KEY
+
+# Production - use secret manager
+# AWS: aws secretsmanager get-secret-value --secret-id zonfig-key
+```
+
+### Encryption Details
+
+| Property | Value |
+|----------|-------|
+| Algorithm | AES-256-GCM |
+| Key Derivation | scrypt with random salt |
+| Salt Length | 32 bytes |
+| IV Length | 16 bytes |
+| Authentication | GCM auth tag |
+
+- Each encryption uses a **random salt and IV**, so the same value encrypts differently each time
+- The **authentication tag** prevents tampering with encrypted values
+- Keys are derived using **scrypt**, resistant to brute-force attacks
+
+## Practical Examples
+
+### Encrypting Production Config
+
+```bash
+# 1. Create your production config
+cat > config/production.json << 'EOF'
+{
+  "database": {
+    "host": "prod-db.example.com",
+    "password": "super-secret-prod-password"
+  },
+  "api": {
+    "token": "prod-api-token-12345"
+  }
+}
+EOF
+
+# 2. Encrypt sensitive values
+export ZONFIG_ENCRYPTION_KEY="your-prod-encryption-key-here"
+npx zonfig encrypt -c ./config/production.json
+
+# 3. Commit the encrypted config
+git add config/production.json
+git commit -m "Add encrypted production config"
+```
+
+### Loading Encrypted Config in Production
+
+```typescript
+import { defineConfig, z } from '@zonfig/zonfig';
+
+const schema = z.object({
+  database: z.object({
+    host: z.string(),
+    password: z.string(),
+  }),
+  api: z.object({
+    token: z.string(),
+  }),
+});
+
+// ZONFIG_ENCRYPTION_KEY should be set in production environment
+const config = await defineConfig({
+  schema,
+  sources: [
+    { type: 'file', path: `./config/${process.env.NODE_ENV}.json` },
+    { type: 'env', prefix: 'APP_' },
+  ],
+});
+
+// Use decrypted values normally
+const db = await connectToDatabase({
+  host: config.get('database.host'),
+  password: config.get('database.password'),
+});
+```
+
+### Rotating Encryption Keys
+
+```bash
+# 1. Decrypt with old key
+ZONFIG_ENCRYPTION_KEY="old-key" npx zonfig decrypt -c config.json -o config.plain.json
+
+# 2. Encrypt with new key
+ZONFIG_ENCRYPTION_KEY="new-key" npx zonfig encrypt -c config.plain.json -o config.json
+
+# 3. Remove plaintext file
+rm config.plain.json
+
+# 4. Update key in secret manager / environment
+```
+
+## Next Steps
+
+- [Secrets Masking](/docs/secrets-masking) - Mask values for safe logging
+- [Plugins](/docs/sources/plugins) - Load secrets from external stores
+- [CLI Reference](/docs/cli) - Full CLI documentation

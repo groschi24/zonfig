@@ -111,6 +111,16 @@ export interface ProfileConfig {
 }
 
 /**
+ * Decryption options for auto-decrypting encrypted values
+ */
+export interface DecryptionConfig {
+  /** Enable auto-decryption (default: true if key is provided or ZONFIG_ENCRYPTION_KEY is set) */
+  enabled?: boolean;
+  /** Decryption key (or use ZONFIG_ENCRYPTION_KEY env var) */
+  key?: string;
+}
+
+/**
  * Main configuration options
  */
 export interface ConfigOptions<TSchema extends z.ZodType> {
@@ -119,6 +129,8 @@ export interface ConfigOptions<TSchema extends z.ZodType> {
   profile?: string;
   profiles?: Record<string, ProfileConfig>;
   cwd?: string;
+  /** Auto-decrypt encrypted values (ENC[...] format) */
+  decrypt?: boolean | DecryptionConfig;
 }
 
 /**

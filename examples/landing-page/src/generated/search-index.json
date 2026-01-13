@@ -72,6 +72,24 @@
     ]
   },
   {
+    "href": "/docs/cli/decrypt",
+    "title": "decrypt",
+    "section": "Docs",
+    "content": "zonfig decrypt Decrypt encrypted values in a configuration file. Usage Options | Option | Description | Required | |--------|-------------|----------| | -c, --config | Path to encrypted config file (JSON/YAML) | Yes | | -o, --output | Output file path (default: overwrites input) | No | | -k, --key | Decryption key (or set ZONFIG ENCRYPTION KEY env var) | Yes | Key can be provided via ZONFIG ENCRYPTION KEY environment variable. Examples Basic Decryption Decrypt with Inline Key Output to Different File Success Output Error Output Missing Key Wrong Key No Encrypted Values Use Cases View Encrypted Config Edit Encrypted Config Key Rotation Exit Codes | Code | Meaning | |------|---------| | 0 | Decryption successful | | 1 | Decryption failed or missing required options | Next Steps - zonfig encrypt - Encrypt configuration files - Encryption - Full encryption documentation",
+    "headings": [
+      "zonfig decrypt",
+      "Usage",
+      "Options",
+      "Examples",
+      "Basic Decryption",
+      "Set decryption key via environment variable",
+      "Decrypt all encrypted values",
+      "Decrypt with Inline Key",
+      "Output to Different File",
+      "Success Output"
+    ]
+  },
+  {
     "href": "/docs/cli/docs",
     "title": "docs",
     "section": "CLI",
@@ -87,6 +105,24 @@
       "Generate to Specific Directory",
       "Custom Env Prefix",
       "Output Examples"
+    ]
+  },
+  {
+    "href": "/docs/cli/encrypt",
+    "title": "encrypt",
+    "section": "Docs",
+    "content": "zonfig encrypt Encrypt sensitive values in a configuration file. Usage Options | Option | Description | Required | |--------|-------------|----------| | -c, --config | Path to config file (JSON/YAML) | Yes | | -o, --output | Output file path (default: overwrites input) | No | | -k, --key | Encryption key (or set ZONFIG ENCRYPTION KEY env var) | Yes | | --paths | Comma-separated paths to encrypt | No | Key can be provided via ZONFIG ENCRYPTION KEY environment variable. Examples Basic Encryption Encrypt with Inline Key Encrypt Specific Paths Only Output to Different File Auto-Detected Sensitive Keys By default, the following key patterns are automatically detected and encrypted: - password , secret , token - apiKey , api key - privateKey , private key - accessKey , access key - credential - encryptionKey , signingKey - clientSecret , client secret - connectionString , connection string Output Format Encrypted values are wrapped in a special format: Success Output Error Output Security Best Practices 1. Never commit encryption keys - Use environment variables or secret managers 2. Use strong keys - At least 32 characters with mixed characters 3. Rotate keys periodically - Decrypt with old key, encrypt with new key Workflow Example Exit Codes | Code | Meaning | |------|---------| | 0 | Encryption successful | | 1 | Encryption failed or missing required options | Next Steps - zonfig decrypt - Decrypt configuration files - Encryption - Full encryption documentation",
+    "headings": [
+      "zonfig encrypt",
+      "Usage",
+      "Options",
+      "Examples",
+      "Basic Encryption",
+      "Set encryption key via environment variable",
+      "Encrypt sensitive values",
+      "Encrypt with Inline Key",
+      "Encrypt Specific Paths Only",
+      "Output to Different File"
     ]
   },
   {
@@ -141,6 +177,24 @@
       "Validate staging config",
       "Validate development config",
       "Success Output"
+    ]
+  },
+  {
+    "href": "/docs/encryption",
+    "title": "encryption",
+    "section": "Docs",
+    "content": "Encryption zonfig supports encrypting sensitive configuration values at rest using AES-256-GCM encryption. This allows you to safely commit encrypted config files to version control while keeping sensitive values secure. Encrypting Config Files (CLI) Use the CLI to encrypt sensitive values in your config files: Auto-Detected Sensitive Keys By default, the encrypt command auto-detects sensitive keys: | Pattern | Examples | |---------|----------| | password | password , userPassword , DB PASSWORD | | secret | secret , clientSecret , JWT SECRET | | token | token , accessToken , API TOKEN | | apiKey / api key | apiKey , api key , API KEY | | privateKey | privateKey , private key | | accessKey | accessKey , access key | | credential | credential , credentials | | encryptionKey | encryptionKey , encryption key | | signingKey | signingKey , signing key | | clientSecret | clientSecret , client secret | | connectionString | connectionString , connection string | Encrypted Value Format Encrypted values are stored with a special prefix for easy identification: The format includes: - salt - Random 32-byte salt for key derivation - iv - Random 16-byte initialization vector - tag - Authentication tag for integrity verification - encryptedData - The encrypted value Decrypting Config Files (CLI) Auto-Decryption in Config Loading zonfig automatically decrypts encrypted values when loading configuration if an encryption key is available. Using Environment Variable Providing Key Explicitly Disabling Auto-Decryption Programmatic Encryption You can encrypt and decrypt values programmatically: encryptValue / decryptValue Encrypt and decrypt individual values: encryptObject / decryptObject Encrypt and decrypt entire config objects: hasEncryptedValues / countEncryptedValues Check for encrypted values in an object: Encryption Options Encrypt Specific Paths Only Additional Keys to Encrypt Add extra key names beyond the defaults: Exclude Keys from Encryption Prevent specific key names from be",
+    "headings": [
+      "Encryption",
+      "Encrypting Config Files (CLI)",
+      "Set the encryption key as an environment variable",
+      "Encrypt sensitive values in a config file",
+      "Or provide the key inline",
+      "Encrypt specific paths only",
+      "Output to a different file",
+      "Auto-Detected Sensitive Keys",
+      "Encrypted Value Format",
+      "Decrypting Config Files (CLI)"
     ]
   },
   {
@@ -216,6 +270,24 @@
     ]
   },
   {
+    "href": "/docs/interpolation",
+    "title": "interpolation",
+    "section": "Docs",
+    "content": "Variable Interpolation zonfig supports variable interpolation using the ${VAR} syntax. This allows you to reference environment variables and other configuration values within your config files. Basic Usage With environment variables DB USER=admin and DB PASSWORD=secret : Variable Types Environment Variables Reference environment variables using uppercase names or names with underscores: Config References Reference other config values using dot notation: Mixed References Combine environment variables and config references: Resolution Order Variables are resolved in this order: 1. Environment variables first - If the variable name is uppercase or contains underscores 2. Config references second - If the variable contains a dot ( . ) 3. Fallback - Try environment, then config Recursive Resolution Variables can reference other variables that also contain interpolation: With API HOST=api.example.com : | Variable | Resolved Value | |----------|----------------| | base | api.example.com | | versioned | api.example.com/v2 | | endpoint | api.example.com/v2/users | Cycle Detection Circular references are automatically detected: This throws an error: Arrays Interpolation works in arrays too: Undefined Variables If a variable cannot be resolved, it becomes an empty string: Practical Examples Database Connection String Multi-Environment URLs Feature Flags with Environment Override Using the Interpolate Function Directly For advanced use cases, you can use the interpolate function directly: Next Steps - Configuration Sources - Where values come from - Environment Variables - Loading from env vars - Validation - Validating interpolated values",
+    "headings": [
+      "Variable Interpolation",
+      "Basic Usage",
+      "Variable Types",
+      "Environment Variables",
+      "Config References",
+      "Mixed References",
+      "Resolution Order",
+      "${DB_HOST} → tries process.env.DB_HOST",
+      "${server.port} → tries config value at server.port",
+      "${host} → tries env first, then config"
+    ]
+  },
+  {
     "href": "/docs/profiles",
     "title": "Environment Profiles",
     "section": "Core Concepts",
@@ -265,6 +337,24 @@
       "Arrays",
       "Enums",
       "Type Inference"
+    ]
+  },
+  {
+    "href": "/docs/secrets-masking",
+    "title": "secrets-masking",
+    "section": "Docs",
+    "content": "Secrets Masking zonfig can automatically mask sensitive values for safe logging and debugging. This prevents accidental exposure of passwords, API keys, tokens, and other secrets in logs or error messages. Basic Usage Detected Sensitive Keys By default, these patterns are automatically detected as sensitive: | Pattern | Examples | |---------|----------| | password | password , userPassword , DB PASSWORD | | secret | secret , clientSecret , JWT SECRET | | token | token , accessToken , API TOKEN | | apiKey / api key | apiKey , api key , API KEY | | auth | auth , authToken , AUTH HEADER | | credential | credential , credentials | | privateKey | privateKey , private key | | accessKey | accessKey , access key | | bearer | bearer , bearerToken | | jwt | jwt , jwtSecret , JWT TOKEN | | session | session , sessionId | | cookie | cookie , sessionCookie | | encryptionKey | encryptionKey , encryption key | | signingKey | signingKey , signing key | | clientSecret | clientSecret , client secret | | connectionString | connectionString , connection string | | dsn | dsn , DATABASE DSN | Masking Options Custom Patterns Add your own patterns for sensitive keys: Replace Default Patterns Override the default patterns entirely: Custom Mask String Change the mask character sequence: Partial Value Display Show the first and/or last characters: Additional Keys Mask specific keys that don't match patterns: Additional Paths Mask specific paths using dot notation: Exclude Keys Prevent masking for specific keys: Exclude Paths Prevent masking for specific paths: Direct Utilities You can use the masking functions directly without a config instance: maskObject Mask all sensitive values in an object: isSensitiveKey Check if a key would be masked: isSensitivePath Check if a path would be masked: maskValue Mask a single value: maskForLog Format a key-value pair for logging: extractSensitiveValues Get all sensitive values from a config (useful for error masking): maskErrorMessage Mask sensitive value",
+    "headings": [
+      "Secrets Masking",
+      "Basic Usage",
+      "Detected Sensitive Keys",
+      "Masking Options",
+      "Custom Patterns",
+      "Replace Default Patterns",
+      "Custom Mask String",
+      "Partial Value Display",
+      "Additional Keys",
+      "Additional Paths"
     ]
   },
   {

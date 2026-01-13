@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { z } from 'zod';
-import { defineConfig, ConfigValidationError } from '../src/index.js';
+import { defineConfig, ConfigValidationError, encryptValue } from '../src/index.js';
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -197,5 +197,119 @@ describe('defineConfig', () => {
     expect(() => {
       (all as Record<string, unknown>).value = 'modified';
     }).toThrow();
+  });
+
+  describe('auto-decryption', () => {
+    const TEST_KEY = 'test-auto-decrypt-key-32chars-x';
+
+    it('auto-decrypts values when decrypt option is true', async () => {
+      const encryptedPassword = encryptValue('my-secret-password', TEST_KEY);
+
+      vi.stubEnv('ZONFIG_ENCRYPTION_KEY', TEST_KEY);
+
+      const schema = z.object({
+        database: z.object({
+          host: z.string(),
+          password: z.string(),
+        }),
+      });
+
+      const config = await defineConfig({
+        schema,
+        sources: [
+          { type: 'object', data: { database: { host: 'localhost', password: encryptedPassword } } },
+        ],
+        decrypt: true,
+      });
+
+      expect(config.get('database.password')).toBe('my-secret-password');
+      expect(config.get('database.host')).toBe('localhost');
+    });
+
+    it('auto-decrypts when decrypt config provides key', async () => {
+      const encryptedPassword = encryptValue('secret123', TEST_KEY);
+
+      const schema = z.object({
+        password: z.string(),
+      });
+
+      const config = await defineConfig({
+        schema,
+        sources: [
+          { type: 'object', data: { password: encryptedPassword } },
+        ],
+        decrypt: { key: TEST_KEY },
+      });
+
+      expect(config.get('password')).toBe('secret123');
+    });
+
+    it('auto-decrypts from env key when decrypt is undefined and ZONFIG_ENCRYPTION_KEY is set', async () => {
+      const encryptedPassword = encryptValue('auto-secret', TEST_KEY);
+
+      vi.stubEnv('ZONFIG_ENCRYPTION_KEY', TEST_KEY);
+
+      const schema = z.object({
+        password: z.string(),
+      });
+
+      const config = await defineConfig({
+        schema,
+        sources: [
+          { type: 'object', data: { password: encryptedPassword } },
+        ],
+      });
+
+      expect(config.get('password')).toBe('auto-secret');
+    });
+
+    it('does not decrypt when decrypt is false', async () => {
+      const encryptedPassword = encryptValue('should-stay-encrypted', TEST_KEY);
+
+      vi.stubEnv('ZONFIG_ENCRYPTION_KEY', TEST_KEY);
+
+      const schema = z.object({
+        password: z.string(),
+      });
+
+      const config = await defineConfig({
+        schema,
+        sources: [
+          { type: 'object', data: { password: encryptedPassword } },
+        ],
+        decrypt: false,
+      });
+
+      // Password should still be encrypted
+      expect(config.get('password')).toMatch(/^ENC\[AES256_GCM,/);
+    });
+
+    it('handles nested encrypted values', async () => {
+      const encryptedToken = encryptValue('api-token-123', TEST_KEY);
+      const encryptedSecret = encryptValue('client-secret-456', TEST_KEY);
+
+      const schema = z.object({
+        api: z.object({
+          token: z.string(),
+        }),
+        oauth: z.object({
+          clientSecret: z.string(),
+        }),
+      });
+
+      const config = await defineConfig({
+        schema,
+        sources: [
+          { type: 'object', data: {
+            api: { token: encryptedToken },
+            oauth: { clientSecret: encryptedSecret },
+          } },
+        ],
+        decrypt: { key: TEST_KEY },
+      });
+
+      expect(config.get('api.token')).toBe('api-token-123');
+      expect(config.get('oauth.clientSecret')).toBe('client-secret-456');
+    });
   });
 });

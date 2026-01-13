@@ -11,10 +11,12 @@ import type {
   ConfigEvent,
   ConfigEventListener,
   WatchOptions,
+  DecryptionConfig,
 } from './types.js';
 import { deepMerge, getByPath, deepFreeze } from '../utils/deep-merge.js';
 import { interpolate } from '../utils/interpolate.js';
 import { maskObject, type MaskOptions } from '../utils/mask.js';
+import { decryptObject, hasEncryptedValues } from '../utils/encrypt.js';
 import { ConfigValidationError } from '../errors/validation.js';
 import { EnvLoader } from '../loaders/env.js';
 import { FileLoader } from '../loaders/file.js';
@@ -392,17 +394,62 @@ async function loadConfig<TSchema extends z.ZodType>(
     env: context.env as Record<string, string | undefined>,
   });
 
+  // Decrypt encrypted values if enabled
+  const decrypted = decryptConfig(interpolated, options.decrypt, context);
+
   // Track provenance
   const provenance = trackProvenance(loadedConfigs);
 
   // Validate with schema
-  const result = schema.safeParse(interpolated);
+  const result = schema.safeParse(decrypted);
 
   if (!result.success) {
     throw new ConfigValidationError(result.error, provenance);
   }
 
   return { data: result.data, provenance };
+}
+
+/**
+ * Decrypt encrypted values in config if decryption is enabled
+ */
+function decryptConfig(
+  config: Record<string, unknown>,
+  decrypt: boolean | DecryptionConfig | undefined,
+  context: LoaderContext
+): Record<string, unknown> {
+  // Check if there are any encrypted values
+  if (!hasEncryptedValues(config)) {
+    return config;
+  }
+
+  // Determine if decryption should happen
+  let key: string | undefined;
+
+  if (decrypt === false) {
+    // Explicitly disabled
+    return config;
+  } else if (decrypt === true) {
+    // Use env var
+    key = context.env.ZONFIG_ENCRYPTION_KEY;
+  } else if (typeof decrypt === 'object') {
+    // Check enabled flag
+    if (decrypt.enabled === false) {
+      return config;
+    }
+    key = decrypt.key ?? context.env.ZONFIG_ENCRYPTION_KEY;
+  } else {
+    // decrypt is undefined - auto-detect from env
+    key = context.env.ZONFIG_ENCRYPTION_KEY;
+  }
+
+  // If no key available, return config as-is (encrypted values will fail validation)
+  if (!key) {
+    return config;
+  }
+
+  // Decrypt all encrypted values
+  return decryptObject(config, { key });
 }
 
 /**

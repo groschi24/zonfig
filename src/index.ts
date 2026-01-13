@@ -23,6 +23,8 @@ export type {
   ConfigReloadEvent,
   ConfigEventListener,
   WatchOptions,
+  // Encryption types
+  DecryptionConfig,
 } from './core/types.js';
 
 // Errors
@@ -74,3 +76,19 @@ export {
   DEFAULT_MASK,
 } from './utils/mask.js';
 export type { MaskOptions } from './utils/mask.js';
+
+// Encryption
+export {
+  encryptValue,
+  decryptValue,
+  encryptObject,
+  decryptObject,
+  isEncrypted,
+  hasEncryptedValues,
+  countEncryptedValues,
+  getEncryptionKey,
+  EncryptionError,
+  ENCRYPTED_PREFIX,
+  ENCRYPTED_SUFFIX,
+} from './utils/encrypt.js';
+export type { EncryptOptions, DecryptOptions } from './utils/encrypt.js';

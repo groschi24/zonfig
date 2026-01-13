@@ -1,0 +1,128 @@
+# zonfig decrypt
+
+Decrypt encrypted values in a configuration file.
+
+## Usage
+
+```bash
+npx zonfig decrypt [options]
+```
+
+## Options
+
+| Option | Description | Required |
+|--------|-------------|----------|
+| `-c, --config <file>` | Path to encrypted config file (JSON/YAML) | Yes |
+| `-o, --output <file>` | Output file path (default: overwrites input) | No |
+| `-k, --key <key>` | Decryption key (or set `ZONFIG_ENCRYPTION_KEY` env var) | Yes* |
+
+*Key can be provided via `ZONFIG_ENCRYPTION_KEY` environment variable.
+
+## Examples
+
+### Basic Decryption
+
+```bash
+# Set decryption key via environment variable
+export ZONFIG_ENCRYPTION_KEY="your-32-character-encryption-key"
+
+# Decrypt all encrypted values
+npx zonfig decrypt -c ./config.encrypted.json
+```
+
+### Decrypt with Inline Key
+
+```bash
+npx zonfig decrypt -c ./config.encrypted.json -k "your-encryption-key"
+```
+
+### Output to Different File
+
+```bash
+npx zonfig decrypt -c ./config.encrypted.json -o ./config.decrypted.json
+```
+
+## Success Output
+
+```
+Decrypting: ./config.encrypted.json
+  Found 3 encrypted value(s)
+  Output: ./config.encrypted.json
+
+Decryption complete!
+```
+
+## Error Output
+
+### Missing Key
+
+```
+Error: Decryption key is required.
+Set ZONFIG_ENCRYPTION_KEY environment variable or use --key (-k) option.
+```
+
+### Wrong Key
+
+```
+Error: Decryption failed - invalid key or corrupted data
+```
+
+### No Encrypted Values
+
+```
+Decrypting: ./config.json
+
+No encrypted values found in file.
+```
+
+## Use Cases
+
+### View Encrypted Config
+
+```bash
+# Decrypt to a temporary file for viewing
+npx zonfig decrypt -c ./config.encrypted.json -o /tmp/config.json
+cat /tmp/config.json
+rm /tmp/config.json
+```
+
+### Edit Encrypted Config
+
+```bash
+# 1. Decrypt
+npx zonfig decrypt -c ./config.encrypted.json -o ./config.plain.json
+
+# 2. Edit the plaintext file
+vim ./config.plain.json
+
+# 3. Re-encrypt
+npx zonfig encrypt -c ./config.plain.json -o ./config.encrypted.json
+
+# 4. Remove plaintext
+rm ./config.plain.json
+```
+
+### Key Rotation
+
+```bash
+# Decrypt with old key
+ZONFIG_ENCRYPTION_KEY="old-key" npx zonfig decrypt -c config.json -o config.plain.json
+
+# Encrypt with new key
+ZONFIG_ENCRYPTION_KEY="new-key" npx zonfig encrypt -c config.plain.json -o config.json
+
+# Clean up
+rm config.plain.json
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Decryption successful |
+| 1 | Decryption failed or missing required options |
+
+## Next Steps
+
+- [zonfig encrypt](/docs/cli/encrypt) - Encrypt configuration files
+- [Encryption](/docs/encryption) - Full encryption documentation

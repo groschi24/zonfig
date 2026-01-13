@@ -1,0 +1,137 @@
+# zonfig encrypt
+
+Encrypt sensitive values in a configuration file.
+
+## Usage
+
+```bash
+npx zonfig encrypt [options]
+```
+
+## Options
+
+| Option | Description | Required |
+|--------|-------------|----------|
+| `-c, --config <file>` | Path to config file (JSON/YAML) | Yes |
+| `-o, --output <file>` | Output file path (default: overwrites input) | No |
+| `-k, --key <key>` | Encryption key (or set `ZONFIG_ENCRYPTION_KEY` env var) | Yes* |
+| `--paths <paths>` | Comma-separated paths to encrypt | No |
+
+*Key can be provided via `ZONFIG_ENCRYPTION_KEY` environment variable.
+
+## Examples
+
+### Basic Encryption
+
+```bash
+# Set encryption key via environment variable
+export ZONFIG_ENCRYPTION_KEY="your-32-character-encryption-key"
+
+# Encrypt sensitive values
+npx zonfig encrypt -c ./config/production.json
+```
+
+### Encrypt with Inline Key
+
+```bash
+npx zonfig encrypt -c ./config.json -k "your-encryption-key"
+```
+
+### Encrypt Specific Paths Only
+
+```bash
+npx zonfig encrypt -c ./config.json --paths "database.password,api.token"
+```
+
+### Output to Different File
+
+```bash
+npx zonfig encrypt -c ./config.json -o ./config.encrypted.json
+```
+
+## Auto-Detected Sensitive Keys
+
+By default, the following key patterns are automatically detected and encrypted:
+
+- `password`, `secret`, `token`
+- `apiKey`, `api_key`
+- `privateKey`, `private_key`
+- `accessKey`, `access_key`
+- `credential`
+- `encryptionKey`, `signingKey`
+- `clientSecret`, `client_secret`
+- `connectionString`, `connection_string`
+
+## Output Format
+
+Encrypted values are wrapped in a special format:
+
+```json
+{
+  "database": {
+    "host": "localhost",
+    "password": "ENC[AES256_GCM,salt:iv:tag:encryptedData]"
+  }
+}
+```
+
+## Success Output
+
+```
+Encrypting: ./config/production.json
+
+  Encrypted 3 value(s)
+  Output: ./config/production.json
+
+Encryption complete!
+```
+
+## Error Output
+
+```
+Error: Encryption key is required.
+Set ZONFIG_ENCRYPTION_KEY environment variable or use --key (-k) option.
+```
+
+## Security Best Practices
+
+1. **Never commit encryption keys** - Use environment variables or secret managers
+2. **Use strong keys** - At least 32 characters with mixed characters
+3. **Rotate keys periodically** - Decrypt with old key, encrypt with new key
+
+## Workflow Example
+
+```bash
+# 1. Create config with plaintext values
+cat > config/production.json << 'EOF'
+{
+  "database": {
+    "host": "prod-db.example.com",
+    "password": "super-secret-password"
+  },
+  "api": {
+    "token": "api-token-12345"
+  }
+}
+EOF
+
+# 2. Encrypt sensitive values
+export ZONFIG_ENCRYPTION_KEY="your-prod-encryption-key-here"
+npx zonfig encrypt -c ./config/production.json
+
+# 3. Commit encrypted config (safe for version control)
+git add config/production.json
+git commit -m "Add encrypted production config"
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Encryption successful |
+| 1 | Encryption failed or missing required options |
+
+## Next Steps
+
+- [zonfig decrypt](/docs/cli/decrypt) - Decrypt configuration files
+- [Encryption](/docs/encryption) - Full encryption documentation

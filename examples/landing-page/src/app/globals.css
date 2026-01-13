@@ -684,7 +684,32 @@ html.dark .header {
 .cli-feature {
   display: flex;
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 8px;
+  padding: 12px;
+  margin-left: -12px;
+  margin-right: -12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.cli-feature:hover {
+  background: var(--bg-secondary);
+}
+
+.cli-feature-active {
+  background: var(--bg-secondary);
+  border-color: var(--primary);
+}
+
+.cli-feature-active .cli-feature-icon {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.cli-feature-active .cli-feature-icon svg {
+  stroke: white;
 }
 
 .cli-feature-icon {
@@ -698,6 +723,7 @@ html.dark .header {
   justify-content: center;
   font-size: 18px;
   flex-shrink: 0;
+  transition: all 0.2s ease;
 }
 
 .cli-feature-text h4 {

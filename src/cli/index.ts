@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { generateDocs } from '../documentation/index.js';
 import { analyzeProject } from './analyze.js';
+import { encryptObject, decryptObject, countEncryptedValues, hasEncryptedValues } from '../utils/encrypt.js';
 import { z } from 'zod';
 
 const VERSION = '0.1.3';
@@ -17,6 +18,8 @@ Usage:
 Commands:
   analyze   Analyze existing project and generate schema from .env files
   docs      Generate documentation from a Zod schema file
+  encrypt   Encrypt sensitive values in a configuration file
+  decrypt   Decrypt encrypted values in a configuration file
   init      Initialize a new zonfig configuration setup
   validate  Validate a configuration file against a schema
   help      Show this help message
@@ -113,6 +116,62 @@ Examples:
   zonfig validate -s ./src/config.ts -c ./config/production.json
 `;
 
+const ENCRYPT_HELP = `
+zonfig encrypt - Encrypt sensitive values in a configuration file
+
+Usage:
+  zonfig encrypt [options]
+
+Options:
+  -c, --config <file>   Path to configuration file (JSON/YAML)
+  -o, --output <file>   Output file path (default: overwrites input)
+  -k, --key <key>       Encryption key (or set ZONFIG_ENCRYPTION_KEY env var)
+  --paths <paths>       Comma-separated paths to encrypt (default: auto-detect sensitive keys)
+  -h, --help            Show this help message
+
+Sensitive keys are auto-detected:
+  password, secret, token, apiKey, privateKey, accessKey,
+  credential, encryptionKey, signingKey, clientSecret, connectionString
+
+Examples:
+  # Encrypt with env variable key
+  export ZONFIG_ENCRYPTION_KEY="my-secret-key"
+  zonfig encrypt -c ./config/production.json
+
+  # Encrypt with inline key
+  zonfig encrypt -c ./config.json -k "my-secret-key"
+
+  # Encrypt specific paths only
+  zonfig encrypt -c ./config.json --paths "database.password,api.token"
+
+  # Output to different file
+  zonfig encrypt -c ./config.json -o ./config.encrypted.json
+`;
+
+const DECRYPT_HELP = `
+zonfig decrypt - Decrypt encrypted values in a configuration file
+
+Usage:
+  zonfig decrypt [options]
+
+Options:
+  -c, --config <file>   Path to encrypted configuration file (JSON/YAML)
+  -o, --output <file>   Output file path (default: overwrites input)
+  -k, --key <key>       Decryption key (or set ZONFIG_ENCRYPTION_KEY env var)
+  -h, --help            Show this help message
+
+Examples:
+  # Decrypt with env variable key
+  export ZONFIG_ENCRYPTION_KEY="my-secret-key"
+  zonfig decrypt -c ./config.encrypted.json
+
+  # Decrypt with inline key
+  zonfig decrypt -c ./config.encrypted.json -k "my-secret-key"
+
+  # Output to different file
+  zonfig decrypt -c ./config.encrypted.json -o ./config.decrypted.json
+`;
+
 interface ParsedArgs {
   values: {
     schema?: string;
@@ -122,6 +181,8 @@ interface ParsedArgs {
     title?: string;
     dir?: string;
     config?: string;
+    key?: string;
+    paths?: string;
     help?: boolean;
     version?: boolean;
     'dry-run'?: boolean;
@@ -144,6 +205,8 @@ function parseCliArgs(): ParsedArgs {
         title: { type: 'string', short: 't' },
         dir: { type: 'string', short: 'd' },
         config: { type: 'string', short: 'c' },
+        key: { type: 'string', short: 'k' },
+        paths: { type: 'string' },
         help: { type: 'boolean', short: 'h' },
         version: { type: 'boolean', short: 'v' },
         'dry-run': { type: 'boolean' },
@@ -495,6 +558,154 @@ async function commandAnalyze(args: ParsedArgs): Promise<void> {
   await analyzeProject(options);
 }
 
+async function loadConfigFile(configPath: string): Promise<{ data: Record<string, unknown>; format: 'json' | 'yaml' }> {
+  const absolutePath = resolve(process.cwd(), configPath);
+
+  if (!existsSync(absolutePath)) {
+    throw new Error(`Config file not found: ${absolutePath}`);
+  }
+
+  const content = await readFile(absolutePath, 'utf-8');
+
+  if (configPath.endsWith('.json')) {
+    return { data: JSON.parse(content), format: 'json' };
+  } else if (configPath.endsWith('.yaml') || configPath.endsWith('.yml')) {
+    const { parse } = await import('yaml');
+    return { data: parse(content), format: 'yaml' };
+  } else {
+    throw new Error('Config file must be .json, .yaml, or .yml');
+  }
+}
+
+async function writeConfigFile(outputPath: string, data: Record<string, unknown>, format: 'json' | 'yaml'): Promise<void> {
+  let content: string;
+
+  if (format === 'json') {
+    content = JSON.stringify(data, null, 2);
+  } else {
+    const { stringify } = await import('yaml');
+    content = stringify(data);
+  }
+
+  await writeFile(outputPath, content);
+}
+
+async function commandEncrypt(args: ParsedArgs): Promise<void> {
+  if (args.values.help) {
+    console.log(ENCRYPT_HELP);
+    return;
+  }
+
+  const configPath = args.values.config;
+  if (!configPath) {
+    console.error('Error: --config (-c) is required\n');
+    console.log(ENCRYPT_HELP);
+    process.exit(1);
+  }
+
+  const outputPath = args.values.output || configPath;
+  const key = args.values.key || process.env.ZONFIG_ENCRYPTION_KEY;
+  const pathsArg = args.values.paths;
+
+  if (!key) {
+    console.error('Error: Encryption key is required.\n');
+    console.error('Set ZONFIG_ENCRYPTION_KEY environment variable or use --key (-k) option.\n');
+    console.log(ENCRYPT_HELP);
+    process.exit(1);
+  }
+
+  console.log(`Encrypting: ${configPath}`);
+
+  try {
+    const { data, format } = await loadConfigFile(configPath);
+
+    // Check if already has encrypted values
+    const existingCount = countEncryptedValues(data);
+    if (existingCount > 0) {
+      console.log(`  Note: File already contains ${existingCount} encrypted value(s)`);
+    }
+
+    // Parse paths if provided
+    const paths = pathsArg ? pathsArg.split(',').map((p) => p.trim()) : undefined;
+
+    const encrypted = encryptObject(data, {
+      key,
+      paths,
+      useSensitivePatterns: !paths, // Use patterns only if no specific paths
+    });
+
+    const newCount = countEncryptedValues(encrypted);
+    const encryptedCount = newCount - existingCount;
+
+    if (encryptedCount === 0) {
+      console.log('\nNo values were encrypted.');
+      if (paths) {
+        console.log('Specified paths may not exist or are already encrypted.');
+      } else {
+        console.log('No sensitive keys found. Use --paths to specify values to encrypt.');
+      }
+      return;
+    }
+
+    await writeConfigFile(resolve(process.cwd(), outputPath), encrypted, format);
+
+    console.log(`\n  Encrypted ${encryptedCount} value(s)`);
+    console.log(`  Output: ${outputPath}`);
+    console.log('\nEncryption complete!');
+  } catch (error) {
+    console.error(`\nError: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+}
+
+async function commandDecrypt(args: ParsedArgs): Promise<void> {
+  if (args.values.help) {
+    console.log(DECRYPT_HELP);
+    return;
+  }
+
+  const configPath = args.values.config;
+  if (!configPath) {
+    console.error('Error: --config (-c) is required\n');
+    console.log(DECRYPT_HELP);
+    process.exit(1);
+  }
+
+  const outputPath = args.values.output || configPath;
+  const key = args.values.key || process.env.ZONFIG_ENCRYPTION_KEY;
+
+  if (!key) {
+    console.error('Error: Decryption key is required.\n');
+    console.error('Set ZONFIG_ENCRYPTION_KEY environment variable or use --key (-k) option.\n');
+    console.log(DECRYPT_HELP);
+    process.exit(1);
+  }
+
+  console.log(`Decrypting: ${configPath}`);
+
+  try {
+    const { data, format } = await loadConfigFile(configPath);
+
+    const encryptedCount = countEncryptedValues(data);
+    if (encryptedCount === 0) {
+      console.log('\nNo encrypted values found in file.');
+      return;
+    }
+
+    console.log(`  Found ${encryptedCount} encrypted value(s)`);
+
+    const decrypted = decryptObject(data, { key });
+
+    await writeConfigFile(resolve(process.cwd(), outputPath), decrypted, format);
+
+    console.log(`  Output: ${outputPath}`);
+    console.log('\nDecryption complete!');
+  } catch (error) {
+    console.error(`\nError: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseCliArgs();
   const command = args.positionals[0];
@@ -530,6 +741,14 @@ async function main(): Promise<void> {
     case 'scan':
     case 'migrate':
       await commandAnalyze(args);
+      break;
+
+    case 'encrypt':
+      await commandEncrypt(args);
+      break;
+
+    case 'decrypt':
+      await commandDecrypt(args);
       break;
 
     case 'help':

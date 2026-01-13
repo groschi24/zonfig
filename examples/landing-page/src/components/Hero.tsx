@@ -22,7 +22,7 @@ export function Hero({ config }: HeroProps) {
         <div className="hero-content">
           <div className="hero-eyebrow animate-in">
             <span className="hero-eyebrow-dot" />
-            <span>Now with CLI &amp; Monorepo Support</span>
+            <span>New: Built-in AES-256 Encryption</span>
           </div>
 
           <h1 className="hero-title animate-in delay-1">

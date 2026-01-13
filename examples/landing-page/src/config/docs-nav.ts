@@ -30,6 +30,7 @@ export const docsNav: NavSection[] = [
       { title: 'Variable Interpolation', href: '/docs/interpolation', icon: 'dollar-sign' },
       { title: 'Watch Mode', href: '/docs/watch-mode', icon: 'refresh-cw' },
       { title: 'Secrets Masking', href: '/docs/secrets-masking', icon: 'eye-off' },
+      { title: 'Encryption', href: '/docs/encryption', icon: 'lock' },
     ],
   },
   {
@@ -57,6 +58,8 @@ export const docsNav: NavSection[] = [
       { title: 'validate', href: '/docs/cli/validate', icon: 'shield' },
       { title: 'docs', href: '/docs/cli/docs', icon: 'book' },
       { title: 'analyze', href: '/docs/cli/analyze', icon: 'search' },
+      { title: 'encrypt', href: '/docs/cli/encrypt', icon: 'lock' },
+      { title: 'decrypt', href: '/docs/cli/decrypt', icon: 'unlock' },
     ],
   },
   {
