@@ -1,0 +1,120 @@
+# Configuration Sources
+
+zonfig can load configuration from multiple sources, merging them in order of priority.
+
+## Source Priority
+
+Sources are loaded in the order they're defined. Later sources override earlier ones:
+
+```typescript
+const config = await defineConfig({
+  schema,
+  sources: [
+    { type: 'file', path: './config/default.json' },  // Base config
+    { type: 'file', path: './config/local.json', optional: true },  // Local overrides
+    { type: 'env', prefix: 'APP_' },  // Environment overrides (highest priority)
+  ],
+});
+```
+
+## Available Source Types
+
+### File Sources
+
+Load from JSON or YAML files:
+
+```typescript
+{ type: 'file', path: './config.json' }
+{ type: 'file', path: './config.yaml' }
+{ type: 'file', path: './.env', format: 'dotenv' }
+```
+
+[Learn more about File Sources](/docs/sources/file)
+
+### Environment Variables
+
+Load from `process.env`:
+
+```typescript
+{ type: 'env', prefix: 'APP_' }
+```
+
+[Learn more about Environment Variables](/docs/sources/env)
+
+### Dotenv Files
+
+Load from `.env` files:
+
+```typescript
+{ type: 'file', path: './.env', format: 'dotenv' }
+{ type: 'file', path: './.env.local', format: 'dotenv', optional: true }
+```
+
+[Learn more about Dotenv Files](/docs/sources/dotenv)
+
+### Plugins
+
+Load from external sources like secret managers:
+
+```typescript
+{ type: 'plugin', name: 'aws-secrets', options: { secretId: 'my-app' } }
+```
+
+[Learn more about Plugins](/docs/sources/plugins)
+
+### Plain Objects
+
+Useful for testing or hardcoded values:
+
+```typescript
+{ type: 'object', data: { debug: true } }
+```
+
+## Optional Sources
+
+Mark sources as optional when they may not exist:
+
+```typescript
+sources: [
+  { type: 'file', path: './config/default.json' },
+  { type: 'file', path: './config/local.json', optional: true },  // Won't error if missing
+]
+```
+
+## Profile-Based Sources
+
+Use `${PROFILE}` interpolation for environment-specific files:
+
+```typescript
+const config = await defineConfig({
+  schema,
+  sources: [
+    { type: 'file', path: './config/default.json' },
+    { type: 'file', path: './config/${PROFILE}.json', optional: true },
+  ],
+  profile: process.env.NODE_ENV ?? 'development',
+});
+```
+
+This loads `./config/production.json` when `NODE_ENV=production`.
+
+## Deep Merging
+
+Objects are deeply merged, arrays are replaced:
+
+```typescript
+// default.json
+{ "server": { "host": "localhost", "port": 3000 } }
+
+// production.json
+{ "server": { "port": 8080 } }
+
+// Result
+{ "server": { "host": "localhost", "port": 8080 } }
+```
+
+## Next Steps
+
+- [File Sources](/docs/sources/file) - JSON and YAML configuration
+- [Environment Variables](/docs/sources/env) - Load from process.env
+- [Plugins](/docs/sources/plugins) - Custom source loaders

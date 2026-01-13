@@ -1,0 +1,11 @@
+{
+  "server": {
+    "port": 3001
+  },
+  "database": {
+    "url": "postgres://localhost:5432/myapp_dev"
+  },
+  "features": {
+    "maxRequestsPerMinute": 1000
+  }
+}

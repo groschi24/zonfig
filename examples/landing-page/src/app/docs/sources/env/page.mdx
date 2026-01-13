@@ -1,0 +1,151 @@
+# Environment Variables
+
+Load configuration from `process.env` with automatic type conversion.
+
+## Basic Usage
+
+```typescript
+const config = await defineConfig({
+  schema: z.object({
+    port: z.number(),
+    debug: z.boolean(),
+    database: z.object({
+      url: z.string(),
+    }),
+  }),
+  sources: [
+    { type: 'env', prefix: 'APP_' },
+  ],
+});
+```
+
+Set environment variables:
+```bash
+APP_PORT=3000
+APP_DEBUG=true
+APP_DATABASE__URL=postgres://localhost/myapp
+```
+
+## Naming Convention
+
+Environment variables are mapped to config paths:
+
+| Environment Variable | Config Path |
+|---------------------|-------------|
+| `APP_PORT` | `port` |
+| `APP_DEBUG` | `debug` |
+| `APP_DATABASE__URL` | `database.url` |
+| `APP_SERVER__HOST` | `server.host` |
+
+**Rules:**
+- Prefix is stripped (e.g., `APP_`)
+- Double underscore (`__`) indicates nesting
+- Single underscores become camelCase: `POOL_SIZE` → `poolSize`
+
+## Prefix
+
+Use a prefix to namespace your variables:
+
+```typescript
+// Only reads APP_* variables
+{ type: 'env', prefix: 'APP_' }
+
+// Only reads MYAPP_* variables
+{ type: 'env', prefix: 'MYAPP_' }
+
+// Reads all variables (not recommended)
+{ type: 'env' }
+```
+
+## Type Conversion
+
+Values are automatically converted based on your schema:
+
+```typescript
+const schema = z.object({
+  port: z.number(),        // "3000" → 3000
+  debug: z.boolean(),      // "true" → true
+  timeout: z.number(),     // "30000" → 30000
+  tags: z.array(z.string()), // "a,b,c" → ["a", "b", "c"]
+});
+```
+
+### Boolean Conversion
+
+| Value | Result |
+|-------|--------|
+| `"true"`, `"1"`, `"yes"` | `true` |
+| `"false"`, `"0"`, `"no"` | `false` |
+
+### Array Conversion
+
+Comma-separated values become arrays:
+```bash
+APP_ALLOWED_ORIGINS=http://localhost:3000,https://example.com
+```
+
+## Priority
+
+Environment variables typically have the highest priority:
+
+```typescript
+sources: [
+  { type: 'file', path: './config/default.json' },  // Base config
+  { type: 'file', path: './.env', format: 'dotenv' },  // .env file
+  { type: 'env', prefix: 'APP_' },  // Env vars override everything
+]
+```
+
+## Nested Objects
+
+Use double underscore for nested paths:
+
+```bash
+# Maps to: server.host
+APP_SERVER__HOST=0.0.0.0
+
+# Maps to: server.port
+APP_SERVER__PORT=8080
+
+# Maps to: database.connection.pool
+APP_DATABASE__CONNECTION__POOL=20
+```
+
+## Case Sensitivity
+
+Environment variables are case-insensitive on Windows but case-sensitive on Unix. For consistency, use SCREAMING_SNAKE_CASE:
+
+```bash
+# Recommended
+APP_DATABASE_URL=...
+
+# Works but not recommended
+app_database_url=...
+```
+
+## Common Patterns
+
+### Docker/Kubernetes
+
+```yaml
+# docker-compose.yml
+services:
+  app:
+    environment:
+      - APP_PORT=8080
+      - APP_DATABASE__URL=postgres://db/app
+```
+
+### CI/CD
+
+```yaml
+# GitHub Actions
+env:
+  APP_DATABASE__URL: ${{ secrets.DATABASE_URL }}
+  APP_JWT_SECRET: ${{ secrets.JWT_SECRET }}
+```
+
+## Next Steps
+
+- [Dotenv Files](/docs/sources/dotenv) - Load from .env files
+- [Configuration Sources](/docs/sources) - Overview of all sources

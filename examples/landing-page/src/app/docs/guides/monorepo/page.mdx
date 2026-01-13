@@ -1,0 +1,226 @@
+# Monorepo Support
+
+Use zonfig across multiple packages in a monorepo.
+
+## Overview
+
+zonfig provides built-in support for monorepos with:
+
+- Automatic monorepo detection
+- Per-package configuration
+- Shared configuration modules
+- CLI tools for multi-package analysis
+
+## Supported Tools
+
+- Turborepo
+- Nx
+- Lerna
+- Rush
+- pnpm workspaces
+- Yarn workspaces
+- npm workspaces
+
+## Project Structure
+
+Typical monorepo structure with zonfig:
+
+```
+my-monorepo/
+├── packages/
+│   ├── api/
+│   │   ├── src/
+│   │   │   └── config.ts
+│   │   ├── config/
+│   │   │   └── default.json
+│   │   └── package.json
+│   ├── web/
+│   │   ├── src/
+│   │   │   └── config.ts
+│   │   ├── config/
+│   │   │   └── default.json
+│   │   └── package.json
+│   └── shared/
+│       └── config/
+│           ├── src/
+│           │   └── index.ts
+│           └── package.json
+├── config/
+│   └── default.json      # Shared config
+├── .env                  # Shared env vars
+├── package.json
+└── turbo.json
+```
+
+## Shared Configuration Package
+
+Create a shared package for common configuration:
+
+```typescript
+// packages/shared/config/src/index.ts
+import { z } from 'zonfig';
+
+// Shared schema parts
+export const loggingSchema = z.object({
+  level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  format: z.enum(['json', 'pretty']).default('json'),
+});
+
+export const databaseSchema = z.object({
+  url: z.string().url(),
+  pool: z.number().default(10),
+});
+
+// Shared types
+export type LoggingConfig = z.infer<typeof loggingSchema>;
+export type DatabaseConfig = z.infer<typeof databaseSchema>;
+```
+
+## Per-Package Configuration
+
+Each package defines its own schema:
+
+```typescript
+// packages/api/src/config.ts
+import { defineConfig, z } from 'zonfig';
+import { loggingSchema, databaseSchema } from '@myorg/shared-config';
+
+const schema = z.object({
+  server: z.object({
+    port: z.number().default(3000),
+    host: z.string().default('0.0.0.0'),
+  }),
+  logging: loggingSchema,
+  database: databaseSchema,
+});
+
+export async function loadConfig() {
+  return defineConfig({
+    schema,
+    sources: [
+      // Root config (shared)
+      { type: 'file', path: '../../config/default.json', optional: true },
+      // Package-specific config
+      { type: 'file', path: './config/default.json' },
+      { type: 'file', path: './config/${PROFILE}.json', optional: true },
+      // Environment variables
+      { type: 'env', prefix: 'API_' },
+    ],
+    profile: process.env.NODE_ENV,
+  });
+}
+```
+
+## CLI Analysis
+
+Analyze configuration across all packages:
+
+```bash
+# Analyze all packages
+npx zonfig analyze --all
+
+# Analyze specific package
+npx zonfig analyze --package api
+npx zonfig analyze --package packages/web
+```
+
+### Output
+
+```
+Analyzing monorepo...
+
+Detected: Turborepo
+Packages found: 3
+
+Analyzing packages/api...
+  Found: 5 env vars, 2 config files
+  Generated: packages/api/src/config.ts
+
+Analyzing packages/web...
+  Found: 3 env vars, 1 config file
+  Generated: packages/web/src/config.ts
+
+Shared config values: 2 (logging, database)
+
+Next Steps:
+  1. Review generated configs in each package's src/config.ts
+  2. Install zonfig in each package: npm install zonfig
+  3. Import shared config if needed
+  4. Update code to use typed config
+```
+
+## Environment Variables
+
+### Root .env
+
+Shared variables at repository root:
+
+```bash
+# .env (root)
+DATABASE_URL=postgres://localhost/myapp
+LOG_LEVEL=info
+```
+
+### Package-specific .env
+
+Override or add package-specific variables:
+
+```bash
+# packages/api/.env
+API_PORT=3000
+API_DATABASE_URL=postgres://localhost/api
+```
+
+## Configuration Priority
+
+1. Package-specific env vars (highest)
+2. Root env vars
+3. Package-specific config files
+4. Root config files (lowest)
+
+```typescript
+sources: [
+  // 1. Root shared config (lowest priority)
+  { type: 'file', path: '../../config/default.json', optional: true },
+
+  // 2. Package config
+  { type: 'file', path: './config/default.json' },
+
+  // 3. Root .env
+  { type: 'file', path: '../../.env', format: 'dotenv', optional: true },
+
+  // 4. Package .env
+  { type: 'file', path: './.env', format: 'dotenv', optional: true },
+
+  // 5. Environment variables (highest priority)
+  { type: 'env', prefix: 'API_' },
+]
+```
+
+## Turborepo Integration
+
+### turbo.json
+
+```json
+{
+  "globalEnv": ["NODE_ENV", "DATABASE_URL"],
+  "pipeline": {
+    "build": {
+      "env": ["API_*", "WEB_*"]
+    }
+  }
+}
+```
+
+## Best Practices
+
+1. **Shared schemas** - Put common schemas in a shared package
+2. **Consistent prefixes** - Use package-specific env prefixes (API_, WEB_)
+3. **Root defaults** - Share common defaults at repository root
+4. **Package overrides** - Allow packages to override shared config
+5. **Type exports** - Export types from shared config package
+
+## Next Steps
+
+- [Configuration Sources](/docs/sources) - Source priority and merging
+- [Environment Profiles](/docs/profiles) - Multi-environment setup

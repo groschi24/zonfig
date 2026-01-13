@@ -1,0 +1,217 @@
+# TypeScript Setup
+
+Get the best developer experience with proper TypeScript configuration.
+
+## Requirements
+
+- TypeScript 5.0 or higher
+- Node.js 18.0 or higher
+
+## tsconfig.json
+
+Recommended settings for optimal type inference:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "module": "ESNext",
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+### Important Settings
+
+<Callout type="tip">
+The `strict` mode is essential for getting the best type inference from your Zod schemas.
+</Callout>
+
+| Setting | Required | Description |
+|---------|----------|-------------|
+| `strict` | Yes | Enables strict type checking |
+| `moduleResolution` | Recommended | Use `bundler` or `node16` |
+| `target` | Recommended | ES2022 or higher |
+
+## Type Inference
+
+zonfig automatically infers types from your Zod schema:
+
+```typescript
+import { defineConfig, z } from 'zonfig';
+
+const schema = z.object({
+  port: z.number(),
+  host: z.string(),
+  debug: z.boolean(),
+});
+
+const config = await defineConfig({ schema, sources: [] });
+
+// Types are inferred automatically
+const port = config.get('port');     // number
+const host = config.get('host');     // string
+const debug = config.get('debug');   // boolean
+```
+
+## Exporting Types
+
+Export your config type for use across your application:
+
+```typescript
+// config.ts
+import { defineConfig, z } from 'zonfig';
+
+export const schema = z.object({
+  server: z.object({
+    host: z.string(),
+    port: z.number(),
+  }),
+  database: z.object({
+    url: z.string(),
+  }),
+});
+
+// Export the inferred type
+export type AppConfig = z.infer<typeof schema>;
+
+// Export the config instance type
+export type ConfigInstance = Awaited<ReturnType<typeof loadConfig>>;
+
+export async function loadConfig() {
+  return defineConfig({
+    schema,
+    sources: [{ type: 'env', prefix: 'APP_' }],
+  });
+}
+```
+
+## Using Config Types
+
+```typescript
+// server.ts
+import type { AppConfig } from './config';
+
+function createServer(serverConfig: AppConfig['server']) {
+  return {
+    host: serverConfig.host,
+    port: serverConfig.port,
+  };
+}
+
+// database.ts
+import { loadConfig } from './config';
+
+async function initDatabase() {
+  const config = await loadConfig();
+  const dbUrl = config.get('database.url');  // string
+}
+```
+
+## Path Autocomplete
+
+With proper TypeScript setup, you get full autocomplete:
+
+```typescript
+config.get('s')          // Suggests: 'server'
+config.get('server.')    // Suggests: 'server.host', 'server.port'
+config.get('database.')  // Suggests: 'database.url'
+```
+
+## Type Errors
+
+TypeScript catches configuration errors at compile time:
+
+```typescript
+// Error: Argument of type '"invalid"' is not assignable
+config.get('invalid');
+
+// Error: Argument of type '"server.invalid"' is not assignable
+config.get('server.invalid');
+
+// Error: Type 'string' is not assignable to type 'number'
+const port: number = config.get('server.host');
+```
+
+## Generic Config Function
+
+Create a typed helper for accessing config:
+
+```typescript
+import { defineConfig, z } from 'zonfig';
+
+const schema = z.object({
+  apiUrl: z.string(),
+  apiKey: z.string(),
+});
+
+type Schema = z.infer<typeof schema>;
+
+let config: Awaited<ReturnType<typeof defineConfig<typeof schema>>>;
+
+export async function initConfig() {
+  config = await defineConfig({ schema, sources: [...] });
+}
+
+export function getConfig<K extends keyof Schema>(key: K): Schema[K] {
+  return config.get(key);
+}
+```
+
+## IDE Support
+
+### VS Code
+
+Install the following extensions for the best experience:
+
+- **Zod Prisma Types** - Better Zod intellisense
+- **Pretty TypeScript Errors** - Readable error messages
+
+### Settings
+
+```json
+{
+  "typescript.preferences.includePackageJsonAutoImports": "on",
+  "typescript.suggest.autoImports": true
+}
+```
+
+## Common Issues
+
+### "Cannot find module 'zonfig'"
+
+Ensure you've installed the package:
+```bash
+npm install zonfig
+```
+
+### Type inference not working
+
+Check that `strict` is enabled in tsconfig.json:
+```json
+{
+  "compilerOptions": {
+    "strict": true
+  }
+}
+```
+
+### ESM/CJS issues
+
+zonfig ships as ESM. If using CommonJS:
+```json
+{
+  "compilerOptions": {
+    "module": "CommonJS",
+    "esModuleInterop": true
+  }
+}
+```
+
+## Next Steps
+
+- [Schema Definition](/docs/schema) - Define typed schemas
+- [Quick Start](/docs/quick-start) - Get started with zonfig

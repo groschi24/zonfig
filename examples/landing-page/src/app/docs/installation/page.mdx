@@ -1,0 +1,92 @@
+# Installation
+
+Get started with zonfig in your Node.js project.
+
+## Requirements
+
+- Node.js 18.0 or higher
+- TypeScript 5.0 or higher (recommended)
+
+## Package Installation
+
+Install zonfig:
+
+```bash
+npm install zonfig
+```
+
+<Callout type="info">
+Zod is bundled with zonfig - no need to install it separately. Import it directly: `import { z } from 'zonfig'`
+</Callout>
+
+Or with your preferred package manager:
+
+```bash
+# yarn
+yarn add zonfig
+
+# pnpm
+pnpm add zonfig
+
+# bun
+bun add zonfig
+```
+
+## TypeScript Configuration
+
+zonfig works best with TypeScript. Ensure your `tsconfig.json` has the following settings:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "module": "ESNext"
+  }
+}
+```
+
+<Callout type="tip">
+The `strict` mode is important for getting the best type inference from your Zod schemas.
+</Callout>
+
+## Verify Installation
+
+Create a simple test file to verify the installation:
+
+```typescript
+import { defineConfig, z } from 'zonfig';
+
+const config = await defineConfig({
+  schema: z.object({
+    test: z.string().default('Hello, zonfig!'),
+  }),
+});
+
+console.log(config.get('test')); // "Hello, zonfig!"
+```
+
+Run it to ensure everything works:
+
+```bash
+npx tsx test.ts
+```
+
+## Existing Project?
+
+If you already have a project with `process.env.*` usage, zonfig can analyze your codebase and generate a typed configuration automatically:
+
+```bash
+# Discover all env vars in your codebase
+npx zonfig analyze
+
+# Generate config based on actual usage
+npx zonfig analyze --generate
+```
+
+This scans your code, finds all environment variables, and creates a typed schema based on how they're used. See [analyze CLI](/docs/cli/analyze) for details.
+
+## Next Steps
+
+Now that you have zonfig installed, continue to the [Quick Start](/docs/quick-start) guide to build your first typed configuration.

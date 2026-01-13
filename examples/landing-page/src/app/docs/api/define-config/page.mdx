@@ -1,0 +1,196 @@
+# defineConfig
+
+The main function for creating a typed configuration instance.
+
+## Signature
+
+```typescript
+function defineConfig<T extends z.ZodType>(
+  options: ConfigOptions<T>
+): Promise<Config<z.infer<T>>>
+```
+
+## Parameters
+
+### options
+
+<ApiProperty name="schema" type="z.ZodType" required>
+The Zod schema that defines the shape and validation rules for your configuration. The schema determines the TypeScript types for all configuration access.
+</ApiProperty>
+
+<ApiProperty name="sources" type="ConfigSource[]">
+An array of configuration sources to load from. Sources are processed in order, with later sources overriding earlier ones.
+
+```typescript
+sources: [
+  { type: 'file', path: './config/default.json' },
+  { type: 'env', prefix: 'APP_' },
+]
+```
+</ApiProperty>
+
+<ApiProperty name="profile" type="string">
+The active environment profile name. Used with the `profiles` option to select environment-specific configuration.
+
+```typescript
+profile: process.env.NODE_ENV ?? 'development'
+```
+</ApiProperty>
+
+<ApiProperty name="profiles" type="Record<string, ProfileConfig>">
+Environment-specific configuration profiles. Each profile can define its own sources and default values.
+
+```typescript
+profiles: {
+  development: {
+    sources: [{ type: 'file', path: './config/dev.json' }],
+  },
+  production: {
+    sources: [{ type: 'env', prefix: 'APP_' }],
+  },
+}
+```
+</ApiProperty>
+
+<ApiProperty name="onError" type="(error: ConfigValidationError) => void">
+Custom error handler called when validation fails. By default, errors are thrown.
+</ApiProperty>
+
+## Return Value
+
+Returns a `Promise` that resolves to a `Config` object with the following methods:
+
+| Method | Description |
+|--------|-------------|
+| `get(path)` | Get a value by dot-notation path |
+| `getAll()` | Get the entire configuration object |
+| `has(path)` | Check if a path exists |
+
+## Examples
+
+### Basic Usage
+
+```typescript
+import { defineConfig, z } from 'zonfig';
+
+const config = await defineConfig({
+  schema: z.object({
+    port: z.number().default(3000),
+    host: z.string().default('localhost'),
+  }),
+});
+
+const port = config.get('port'); // number
+```
+
+### With Multiple Sources
+
+```typescript
+const config = await defineConfig({
+  schema: z.object({
+    database: z.object({
+      url: z.string().url(),
+      pool: z.number().default(10),
+    }),
+  }),
+  sources: [
+    { type: 'file', path: './config/default.json' },
+    { type: 'file', path: './.env', format: 'dotenv' },
+    { type: 'env', prefix: 'APP_' },
+  ],
+});
+```
+
+### With Environment Profiles
+
+```typescript
+const config = await defineConfig({
+  schema,
+  profile: process.env.NODE_ENV,
+  profiles: {
+    development: {
+      sources: [
+        { type: 'file', path: './config/dev.json' },
+        { type: 'file', path: './.env.local', format: 'dotenv', optional: true },
+      ],
+    },
+    production: {
+      sources: [
+        { type: 'env', prefix: 'APP_' },
+        { type: 'plugin', name: 'aws-secrets', options: { secretId: 'prod/app' } },
+      ],
+    },
+    test: {
+      sources: [
+        { type: 'file', path: './config/test.json' },
+      ],
+    },
+  },
+});
+```
+
+### With Custom Error Handling
+
+```typescript
+const config = await defineConfig({
+  schema,
+  sources: [...],
+  onError: (error) => {
+    console.error('Configuration failed:', error.message);
+    console.error('Errors:', error.errors);
+    process.exit(1);
+  },
+});
+```
+
+## Source Types
+
+### File Source
+
+Load configuration from JSON or YAML files:
+
+```typescript
+{ type: 'file', path: './config.json' }
+{ type: 'file', path: './config.yaml' }
+{ type: 'file', path: './.env', format: 'dotenv' }
+{ type: 'file', path: './config.json', optional: true }
+```
+
+### Environment Variables
+
+Load from environment variables with an optional prefix:
+
+```typescript
+{ type: 'env', prefix: 'APP_' }
+// APP_DATABASE_URL becomes database.url
+// APP_SERVER_PORT becomes server.port
+```
+
+### Plugin Sources
+
+Load from external sources like secret managers:
+
+```typescript
+{ type: 'plugin', name: 'aws-secrets', options: { secretId: 'my-secret' } }
+{ type: 'plugin', name: 'vault', options: { path: 'secret/data/app' } }
+```
+
+## Type Safety
+
+The return type is fully inferred from your Zod schema:
+
+```typescript
+const schema = z.object({
+  port: z.number(),
+  database: z.object({
+    url: z.string(),
+  }),
+});
+
+const config = await defineConfig({ schema });
+
+config.get('port');           // number
+config.get('database.url');   // string
+config.get('database');       // { url: string }
+config.get('invalid');        // TypeScript error!
+```

@@ -1,0 +1,510 @@
+# zonfig
+
+[![npm version](https://img.shields.io/npm/v/zonfig.svg)](https://www.npmjs.com/package/zonfig)
+[![npm downloads](https://img.shields.io/npm/dm/zonfig.svg)](https://www.npmjs.com/package/zonfig)
+[![license](https://img.shields.io/npm/l/zonfig.svg)](https://github.com/groschi24/zonfig/blob/main/LICENSE)
+
+A universal, type-safe configuration library for Node.js applications. Define your config schema once with Zod and load from multiple sources with full TypeScript inference.
+
+## Features
+
+- **Type-safe** - Full TypeScript inference from your Zod schema
+- **Multi-source** - Load from env vars, JSON, YAML, .env files, and custom plugins
+- **Validated** - Runtime validation with clear error messages showing exactly what's wrong
+- **Documented** - Auto-generate markdown docs, JSON Schema, or .env.example from your schema
+- **Immutable** - Config is frozen at startup, preventing accidental mutations
+- **Extensible** - Plugin system for secret stores (AWS Secrets Manager, Vault, etc.)
+- **CLI included** - Generate docs, validate configs, and scaffold projects from the command line
+
+## Installation
+
+```bash
+npm install zonfig
+```
+
+## Quick Start
+
+```typescript
+import { defineConfig, z } from 'zonfig';
+
+// Define your schema
+const config = await defineConfig({
+  schema: z.object({
+    server: z.object({
+      host: z.string().default('localhost'),
+      port: z.number().min(1).max(65535).default(3000),
+    }),
+    database: z.object({
+      url: z.string().url(),
+      poolSize: z.number().default(10),
+    }),
+    debug: z.boolean().default(false),
+  }),
+  sources: [
+    { type: 'file', path: './config.json' },
+    { type: 'env', prefix: 'APP_' },
+  ],
+});
+
+// Fully typed access
+const port = config.get('server.port');     // number
+const dbUrl = config.get('database.url');   // string
+const all = config.getAll();                // Full typed object
+```
+
+## Configuration Sources
+
+Sources are loaded in order, with later sources overriding earlier ones.
+
+### Environment Variables
+
+```typescript
+{ type: 'env', prefix: 'APP_' }
+```
+
+Environment variable naming convention:
+- `APP_SERVER__HOST` → `server.host`
+- `APP_DATABASE__POOL_SIZE` → `database.poolSize`
+
+Double underscore (`__`) indicates nesting. Single underscores are converted to camelCase.
+
+### JSON/YAML Files
+
+```typescript
+{ type: 'file', path: './config.json' }
+{ type: 'file', path: './config.yaml' }
+{ type: 'file', path: './config.yml' }
+```
+
+Supports profile interpolation:
+
+```typescript
+{ type: 'file', path: './config/${PROFILE}.json', optional: true }
+```
+
+### .env Files
+
+```typescript
+{ type: 'file', path: './.env', format: 'dotenv' }
+```
+
+### Plain Objects
+
+```typescript
+{ type: 'object', data: { server: { port: 8080 } } }
+```
+
+### Plugins
+
+```typescript
+{ type: 'plugin', name: 'aws-secrets', options: { secretId: 'my-app/prod' } }
+```
+
+## Environment Profiles
+
+Define different configurations per environment:
+
+```typescript
+const config = await defineConfig({
+  schema,
+  profiles: {
+    development: {
+      sources: [
+        { type: 'file', path: './config/dev.json' },
+        { type: 'env', prefix: 'APP_' },
+      ],
+      defaults: {
+        debug: true,
+      },
+    },
+    production: {
+      sources: [
+        { type: 'plugin', name: 'aws-secrets', options: { secretId: 'prod/app' } },
+        { type: 'env', prefix: 'APP_' },
+      ],
+    },
+  },
+  profile: process.env.NODE_ENV ?? 'development',
+});
+```
+
+## Plugins
+
+Create custom plugins to load configuration from any source:
+
+```typescript
+import { definePlugin, registerPlugin } from 'zonfig';
+
+const awsSecretsPlugin = definePlugin({
+  name: 'aws-secrets',
+  async load(options: { secretId: string; region?: string }, context) {
+    const client = new SecretsManagerClient({
+      region: options.region ?? 'us-east-1'
+    });
+    const response = await client.send(
+      new GetSecretValueCommand({ SecretId: options.secretId })
+    );
+    return JSON.parse(response.SecretString ?? '{}');
+  },
+});
+
+registerPlugin(awsSecretsPlugin);
+```
+
+## Auto-Documentation
+
+Generate documentation from your schema:
+
+```typescript
+import { generateDocs } from 'zonfig';
+
+// Markdown documentation
+const markdown = generateDocs(schema, { format: 'markdown' });
+
+// JSON Schema
+const jsonSchema = generateDocs(schema, { format: 'json-schema' });
+
+// .env.example file
+const envExample = generateDocs(schema, {
+  format: 'env-example',
+  prefix: 'APP_'
+});
+```
+
+### Example Markdown Output
+
+```markdown
+# Configuration Reference
+
+## server
+
+| Key | Type | Required | Default | Description |
+|-----|------|----------|---------|-------------|
+| `server.host` | string | No | `"localhost"` | - |
+| `server.port` | number | No | `3000` | - |
+```
+
+### Example .env.example Output
+
+```bash
+# Configuration Environment Variables
+# Generated by zonfig
+
+# Type: string (optional)
+SERVER__HOST=localhost
+
+# Type: number (optional)
+SERVER__PORT=3000
+
+# Type: string (required)
+DATABASE__URL=
+```
+
+## CLI
+
+zonfig includes a command-line interface for common tasks.
+
+### Commands
+
+```bash
+# Show help
+npx zonfig --help
+
+# Generate documentation from a schema file
+npx zonfig docs -s ./src/config.ts
+
+# Initialize a new zonfig setup
+npx zonfig init
+
+# Validate a config file against a schema
+npx zonfig validate -s ./src/config.ts -c ./config/production.json
+```
+
+### `zonfig docs`
+
+Generate documentation from a Zod schema file.
+
+```bash
+npx zonfig docs [options]
+
+Options:
+  -s, --schema <file>    Path to schema file (required)
+  -o, --output <dir>     Output directory (default: .)
+  -f, --format <type>    markdown | env | json-schema | all (default: all)
+  -p, --prefix <prefix>  Env var prefix for env format (default: APP_)
+  -t, --title <title>    Title for markdown docs
+```
+
+**Examples:**
+
+```bash
+# Generate all formats (CONFIG.md, .env.example, config.schema.json)
+npx zonfig docs -s ./src/config.ts
+
+# Generate only markdown to a specific directory
+npx zonfig docs -s ./src/config.ts -f markdown -o ./docs
+
+# Generate .env.example with custom prefix
+npx zonfig docs -s ./src/config.ts -f env -p MYAPP_
+```
+
+The schema file must export `schema`, `configSchema`, or a default export:
+
+```typescript
+// src/config.ts
+import { z } from 'zod';
+
+export const schema = z.object({
+  server: z.object({
+    port: z.number().default(3000),
+  }),
+});
+```
+
+### `zonfig init`
+
+Scaffold a new zonfig configuration setup.
+
+```bash
+npx zonfig init [options]
+
+Options:
+  -d, --dir <directory>  Target directory (default: .)
+```
+
+Creates:
+- `src/config.ts` - Schema definition and loader
+- `config/default.json` - Default configuration values
+- `.env.example` - Environment variable template
+
+### `zonfig analyze`
+
+Analyze an existing project and auto-generate a Zod schema from discovered configuration.
+
+```bash
+npx zonfig analyze [options]
+
+Options:
+  -d, --dir <directory>  Directory to analyze (default: .)
+  -o, --output <file>    Output file path (default: src/config.ts)
+  --dry-run              Preview schema without writing
+  -v, --verbose          Show detailed analysis
+
+Monorepo Options:
+  --all                  Analyze all packages in monorepo
+  --package <name>       Analyze specific package by name or path
+```
+
+**What it detects:**
+- `.env`, `.env.local`, `.env.development`, `.env.production` files
+- `config/*.json` and `config/*.yaml` files
+- `process.env.*` and `import.meta.env.*` usage in source code
+- Existing config libraries (dotenv, convict, config, etc.)
+- Framework detection (Next.js, Vite, Express, NestJS, etc.)
+- Monorepo tools (Turborepo, Nx, Lerna, pnpm, yarn, npm workspaces)
+
+**Example:**
+
+```bash
+npx zonfig analyze --dry-run
+```
+
+Output:
+```typescript
+export const schema = z.object({
+  server: z.object({
+    host: z.string().optional(),
+    port: z.number().optional(),
+  }),
+  database: z.object({
+    url: z.string().url(),
+    poolSize: z.number().optional(),
+  }),
+  auth: z.object({
+    jwtSecret: z.string(), // sensitive
+  }),
+});
+```
+
+The analyzer:
+- Groups related config values (server, database, auth, etc.)
+- Infers types from values (boolean, number, URL, email)
+- Detects sensitive values (passwords, secrets, tokens)
+- Provides migration hints for existing config libraries
+
+#### Monorepo Support
+
+The analyze command automatically detects monorepos and provides special handling:
+
+```bash
+# Analyze all packages in a monorepo
+npx zonfig analyze --all
+
+# Analyze a specific package
+npx zonfig analyze --package my-app
+npx zonfig analyze --package apps/web
+```
+
+**Supported monorepo tools:**
+- Turborepo (`turbo.json`)
+- Nx (`nx.json`)
+- Lerna (`lerna.json`)
+- Rush (`rush.json`)
+- pnpm workspaces (`pnpm-workspace.yaml`)
+- Yarn workspaces (`package.json` workspaces)
+- npm workspaces (`package.json` workspaces)
+
+When analyzing a monorepo:
+- Detects shared `.env` files at the root
+- Scans each package for package-specific config
+- Merges shared and package-specific configuration
+- Generates a config file for each package
+- Creates a shared config module for common values
+
+### `zonfig validate`
+
+Validate a configuration file against a schema.
+
+```bash
+npx zonfig validate [options]
+
+Options:
+  -s, --schema <file>   Path to schema file (required)
+  -c, --config <file>   Path to config file (required)
+```
+
+**Example:**
+
+```bash
+npx zonfig validate -s ./src/config.ts -c ./config/production.json
+```
+
+Output on success:
+```
+Validating configuration...
+  Schema: ./src/config.ts
+  Config: ./config/production.json
+
+Validation successful!
+```
+
+Output on failure:
+```
+Validation failed!
+
+  ✗ database.url
+    Invalid url
+    Expected: valid URL
+    Received: "not-a-url"
+```
+
+## Error Handling
+
+Validation errors are clear and actionable:
+
+```
+Configuration validation failed:
+
+✗ database.url
+  Expected valid URL string
+  Received: "not-a-url"
+  Source: environment variable APP_DATABASE__URL
+
+✗ server.port
+  Number must be less than or equal to 65535
+  Received: 70000
+  Source: file: ./config.json
+```
+
+### Error Types
+
+```typescript
+import {
+  ConfigValidationError,
+  ConfigFileNotFoundError,
+  ConfigParseError,
+  PluginNotFoundError,
+} from 'zonfig';
+
+try {
+  const config = await defineConfig({ schema, sources });
+} catch (error) {
+  if (error instanceof ConfigValidationError) {
+    console.error(error.formatErrors());
+    console.error(error.errors); // Structured error details
+    process.exit(1);
+  }
+  throw error;
+}
+```
+
+## API Reference
+
+### `defineConfig(options)`
+
+Creates a typed configuration instance.
+
+**Options:**
+- `schema` - Zod schema defining config structure
+- `sources` - Array of configuration sources (loaded in order)
+- `profile` - Active profile name (optional)
+- `profiles` - Profile-specific configurations (optional)
+- `cwd` - Working directory for file resolution (optional, defaults to `process.cwd()`)
+
+**Returns:** `Promise<Config<TSchema>>`
+
+### `Config` Methods
+
+- `get(path)` - Get value at dot-notation path (type-safe)
+- `getAll()` - Get entire config object (frozen)
+- `has(path)` - Check if path exists
+- `getSource(path)` - Get source of a specific value
+
+### `generateDocs(schema, options)`
+
+Generate documentation from a Zod schema.
+
+**Options:**
+- `format` - `'markdown'` | `'json-schema'` | `'env-example'`
+- `prefix` - Environment variable prefix (for env-example)
+- `title` - Document title (for markdown)
+- `includeDefaults` - Include default values (default: true)
+
+### Plugin Functions
+
+- `definePlugin(options)` - Create a plugin definition
+- `registerPlugin(plugin)` - Register a plugin globally
+- `getPlugin(name)` - Get a registered plugin
+- `hasPlugin(name)` - Check if plugin is registered
+- `unregisterPlugin(name)` - Remove a plugin
+- `clearPlugins()` - Remove all plugins
+
+## TypeScript Support
+
+zonfig provides full type inference from your Zod schema:
+
+```typescript
+const schema = z.object({
+  port: z.number(),
+  host: z.string(),
+});
+
+const config = await defineConfig({ schema, sources: [] });
+
+config.get('port');   // number
+config.get('host');   // string
+config.get('other');  // TypeScript error!
+```
+
+## Requirements
+
+- Node.js >= 18.0.0
+- Zod >= 3.22.0
+
+## License
+
+MIT - see [LICENSE](LICENSE) for details.
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

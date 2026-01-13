@@ -1,0 +1,156 @@
+# Dotenv Files
+
+Load configuration from `.env` files for local development.
+
+## Basic Usage
+
+```typescript
+const config = await defineConfig({
+  schema,
+  sources: [
+    { type: 'file', path: './.env', format: 'dotenv' },
+  ],
+});
+```
+
+**.env:**
+```bash
+PORT=3000
+DEBUG=true
+DATABASE_URL=postgres://localhost/myapp
+JWT_SECRET=your-secret-key
+```
+
+## Multiple Environments
+
+Load different `.env` files per environment:
+
+```typescript
+sources: [
+  { type: 'file', path: './.env', format: 'dotenv' },
+  { type: 'file', path: './.env.local', format: 'dotenv', optional: true },
+  { type: 'file', path: './.env.${PROFILE}', format: 'dotenv', optional: true },
+]
+```
+
+File priority (later overrides earlier):
+```
+.env                  # Shared defaults
+.env.local            # Local overrides (gitignored)
+.env.development      # Environment-specific
+.env.production
+```
+
+## Variable Expansion
+
+Reference other variables:
+
+```bash
+BASE_URL=https://api.example.com
+API_URL=${BASE_URL}/v1
+FULL_URL=${API_URL}/users
+```
+
+## Multiline Values
+
+Use quotes for multiline strings:
+
+```bash
+PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEA0Z3VS
+...
+-----END RSA PRIVATE KEY-----"
+```
+
+## Comments
+
+Lines starting with `#` are ignored:
+
+```bash
+# Database configuration
+DATABASE_URL=postgres://localhost/myapp
+
+# Feature flags
+ENABLE_FEATURE_X=true  # inline comments also work
+```
+
+## Combined with Env Vars
+
+Typically combine with actual environment variables:
+
+```typescript
+sources: [
+  { type: 'file', path: './config/default.json' },
+  { type: 'file', path: './.env', format: 'dotenv', optional: true },
+  { type: 'file', path: './.env.local', format: 'dotenv', optional: true },
+  { type: 'env', prefix: 'APP_' },  // Real env vars override .env
+]
+```
+
+## Mapping to Nested Config
+
+Dotenv files use flat keys. Map them to nested config with prefixes:
+
+**.env:**
+```bash
+APP_SERVER__HOST=localhost
+APP_SERVER__PORT=3000
+APP_DATABASE__URL=postgres://localhost/myapp
+```
+
+**Schema:**
+```typescript
+const schema = z.object({
+  server: z.object({
+    host: z.string(),
+    port: z.number(),
+  }),
+  database: z.object({
+    url: z.string(),
+  }),
+});
+```
+
+## Best Practices
+
+### Git Ignore
+
+Always gitignore sensitive files:
+
+```gitignore
+# .gitignore
+.env.local
+.env.*.local
+.env.development.local
+.env.production.local
+```
+
+### Example Files
+
+Provide `.env.example` for documentation:
+
+```bash
+# .env.example
+PORT=3000
+DATABASE_URL=postgres://localhost/myapp
+JWT_SECRET=generate-a-secure-secret
+```
+
+### Generate with CLI
+
+```bash
+npx zonfig docs -f env
+```
+
+This generates `.env.example` from your schema.
+
+## Security Notes
+
+<Callout type="warning">
+Never commit `.env` files with real secrets to version control. Use `.env.example` with placeholder values instead.
+</Callout>
+
+## Next Steps
+
+- [Environment Variables](/docs/sources/env) - Load from process.env
+- [Secret Management](/docs/guides/secrets) - Handle sensitive configuration

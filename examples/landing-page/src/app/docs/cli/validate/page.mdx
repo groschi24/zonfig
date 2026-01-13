@@ -1,0 +1,136 @@
+# zonfig validate
+
+Validate a configuration file against a schema.
+
+## Usage
+
+```bash
+npx zonfig validate [options]
+```
+
+## Options
+
+| Option | Description | Required |
+|--------|-------------|----------|
+| `-s, --schema <file>` | Path to schema file | Yes |
+| `-c, --config <file>` | Path to config file | Yes |
+
+## Examples
+
+### Basic Validation
+
+```bash
+npx zonfig validate -s ./src/config.ts -c ./config/production.json
+```
+
+### Validate Different Environments
+
+```bash
+# Validate production config
+npx zonfig validate -s ./src/config.ts -c ./config/production.json
+
+# Validate staging config
+npx zonfig validate -s ./src/config.ts -c ./config/staging.json
+
+# Validate development config
+npx zonfig validate -s ./src/config.ts -c ./config/development.json
+```
+
+## Success Output
+
+When validation passes:
+
+```
+Validating configuration...
+  Schema: ./src/config.ts
+  Config: ./config/production.json
+
+✓ Validation successful!
+```
+
+## Error Output
+
+When validation fails:
+
+```
+Validating configuration...
+  Schema: ./src/config.ts
+  Config: ./config/production.json
+
+✗ Validation failed!
+
+  ✗ database.url
+    Invalid url
+    Expected: valid URL
+    Received: "not-a-url"
+
+  ✗ server.port
+    Number must be less than or equal to 65535
+    Received: 70000
+
+  ✗ apiKey
+    Required
+    Received: undefined
+```
+
+## Schema File Format
+
+The schema file must export `schema`, `configSchema`, or a default export:
+
+```typescript
+// src/config.ts
+import { z } from 'zonfig';
+
+export const schema = z.object({
+  server: z.object({
+    port: z.number().min(1).max(65535),
+    host: z.string(),
+  }),
+  database: z.object({
+    url: z.string().url(),
+  }),
+});
+```
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+name: Validate Config
+on: [push, pull_request]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npx zonfig validate -s ./src/config.ts -c ./config/production.json
+```
+
+### Pre-commit Hook
+
+```bash
+#!/bin/sh
+# .husky/pre-commit
+
+npx zonfig validate -s ./src/config.ts -c ./config/default.json
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Validation successful |
+| 1 | Validation failed |
+| 2 | Schema file not found |
+| 3 | Config file not found |
+
+## Next Steps
+
+- [Validation](/docs/validation) - Understanding validation errors
+- [zonfig docs](/docs/cli/docs) - Generate documentation

@@ -1,0 +1,378 @@
+[
+  {
+    "href": "/docs/api/config",
+    "title": "Config Object",
+    "section": "API Reference",
+    "content": "Config Object The Config object returned by defineConfig() provides type-safe access to your configuration. Overview Methods get(path) Get a configuration value by dot-notation path. Type Safety: getAll() Get the entire configuration object. The returned object is deeply frozen and cannot be modified. has(path) Check if a path exists and has a non-undefined value. getSource(path) Get the source of a specific configuration value. Useful for debugging where values come from. Immutability The Config object and all its values are frozen: Type Inference Types are automatically inferred from your Zod schema: Autocomplete Your IDE provides full autocomplete for configuration paths: Nested Access Access nested values with dot notation: Usage Patterns Dependency Injection Module Initialization Next Steps - defineConfig - Configuration options - Types - TypeScript types reference",
+    "headings": [
+      "Config Object",
+      "Overview",
+      "Methods",
+      "get(path)",
+      "getAll()",
+      "has(path)",
+      "getSource(path)",
+      "Immutability",
+      "Type Inference",
+      "Autocomplete"
+    ]
+  },
+  {
+    "href": "/docs/api/define-config",
+    "title": "defineConfig",
+    "section": "API Reference",
+    "content": "defineConfig The main function for creating a typed configuration instance. Signature Parameters options The Zod schema that defines the shape and validation rules for your configuration. The schema determines the TypeScript types for all configuration access. An array of configuration sources to load from. Sources are processed in order, with later sources overriding earlier ones. The active environment profile name. Used with the profiles option to select environment-specific configuration. \"> Environment-specific configuration profiles. Each profile can define its own sources and default values. void\"> Custom error handler called when validation fails. By default, errors are thrown. Return Value Returns a Promise that resolves to a Config object with the following methods: | Method | Description | |--------|-------------| | get(path) | Get a value by dot-notation path | | getAll() | Get the entire configuration object | | has(path) | Check if a path exists | Examples Basic Usage With Multiple Sources With Environment Profiles With Custom Error Handling Source Types File Source Load configuration from JSON or YAML files: Environment Variables Load from environment variables with an optional prefix: Plugin Sources Load from external sources like secret managers: Type Safety The return type is fully inferred from your Zod schema:",
+    "headings": [
+      "defineConfig",
+      "Signature",
+      "Parameters",
+      "options",
+      "Return Value",
+      "Examples",
+      "Basic Usage",
+      "With Multiple Sources",
+      "With Environment Profiles",
+      "With Custom Error Handling"
+    ]
+  },
+  {
+    "href": "/docs/api/types",
+    "title": "Types",
+    "section": "API Reference",
+    "content": "Types TypeScript type definitions exported by zonfig. Core Types ConfigOptions Options for defineConfig() : Source Configuration source definition: ProfileConfig Profile-specific configuration: Config Types Config The configuration instance returned by defineConfig() : PathsOf Utility type that extracts all valid dot-notation paths from a type: ValueAt Utility type that gets the value type at a specific path: Plugin Types Plugin Plugin definition: DefinePluginOptions Options for definePlugin() : LoaderContext Context passed to loaders and plugins: Error Types ConfigValidationError Thrown when configuration validation fails: ConfigFileNotFoundError Thrown when a required config file is missing: ConfigParseError Thrown when a config file cannot be parsed: PluginNotFoundError Thrown when a plugin is not registered: Documentation Types DocFormat Output format for documentation generation: DocOptions Options for generateDocs() : Importing Types Next Steps - defineConfig - API reference - Config Object - Working with config",
+    "headings": [
+      "Types",
+      "Core Types",
+      "ConfigOptions",
+      "Source",
+      "ProfileConfig",
+      "Config Types",
+      "Config",
+      "PathsOf",
+      "ValueAt",
+      "Plugin Types"
+    ]
+  },
+  {
+    "href": "/docs/cli/analyze",
+    "title": "analyze",
+    "section": "CLI",
+    "content": "zonfig analyze Analyze your codebase to discover configuration usage, generate zonfig setup from existing code, and find unused config keys. Usage Options | Option | Description | Default | |--------|-------------|---------| | --config, -c | Path to existing config file | Auto-detect | | --generate, -g | Generate zonfig config from discovered usage | false | | --output, -o | Output directory for generated files | ./src | | --all | Analyze all packages in a monorepo | false | | --package, -p | Analyze a specific package by name | - | | --format | Output format: text , json | text | Modes 1. Discovery Mode (Default) Scan your codebase to discover environment variables and config patterns: Output: 2. Generate Mode Generate zonfig configuration from discovered usage: This creates: Generated Files src/config.ts - Schema inferred from usage: 3. Audit Mode If you already have zonfig set up, analyze finds unused configuration: Output: Monorepo Support Analyze All Packages Output: Generate for Monorepo Creates config for each package: Analyze Specific Package JSON Output Get machine-readable output: CI/CD Integration Check for Unused Config Detect Undocumented Env Vars Smart Inference The analyzer infers types and validation from usage patterns: | Pattern | Inferred Type | |---------|---------------| | parseInt(process.env.PORT) | z.number() | | process.env.DEBUG === 'true' | z.boolean() | | process.env.DATABASE URL (contains URL) | z.string().url() | | process.env.LOG LEVEL (limited values) | z.enum([...]) | | process.env.API KEY \\|\\| 'default' | z.string().default('default') | | process.env.OPTIONAL VAR (with fallback) | z.string().optional() | Next Steps - init - Create config from scratch instead - Monorepo Support - Multi-package configuration - Schema Definition - Customize generated schema",
+    "headings": [
+      "zonfig analyze",
+      "Usage",
+      "Options",
+      "Modes",
+      "1. Discovery Mode (Default)",
+      "2. Generate Mode",
+      "3. Audit Mode",
+      "Monorepo Support",
+      "Analyze All Packages",
+      "Generate for Monorepo"
+    ]
+  },
+  {
+    "href": "/docs/cli/docs",
+    "title": "docs",
+    "section": "CLI",
+    "content": "zonfig docs Generate documentation from your Zod schema. Usage Options | Option | Description | Default | |--------|-------------|---------| | -s, --schema | Path to schema file | Required | | -o, --output | Output directory | . | | -f, --format | Output format | all | | -p, --prefix | Env var prefix (for env format) | APP | | -t, --title | Title for markdown docs | Schema name | Formats | Format | Output File | Description | |--------|-------------|-------------| | markdown | CONFIG.md | Markdown documentation | | env | .env.example | Environment variable template | | json-schema | config.schema.json | JSON Schema | | all | All of the above | Generate all formats | Examples Generate All Formats Creates: - CONFIG.md - .env.example - config.schema.json Generate Only Markdown Generate to Specific Directory Custom Env Prefix Output Examples Markdown (CONFIG.md) Environment Template (.env.example) JSON Schema (config.schema.json) Schema File Format Your schema file must export schema , configSchema , or a default export: Use .describe() on your Zod fields to add descriptions to the generated documentation. Automation npm Script Pre-commit Hook Next Steps - Schema Definition - Add descriptions to your schema - zonfig validate - Validate configuration files",
+    "headings": [
+      "zonfig docs",
+      "Usage",
+      "Options",
+      "Formats",
+      "Examples",
+      "Generate All Formats",
+      "Generate Only Markdown",
+      "Generate to Specific Directory",
+      "Custom Env Prefix",
+      "Output Examples"
+    ]
+  },
+  {
+    "href": "/docs/cli/init",
+    "title": "init",
+    "section": "CLI",
+    "content": "zonfig init Scaffold a new zonfig configuration setup in your project. Usage Options | Option | Description | Default | |--------|-------------|---------| | -d, --dir | Target directory | . (current) | What It Creates Running zonfig init creates: src/config.ts Schema definition and configuration loader: config/default.json Default configuration values: .env.example Environment variable template: Example Output Customization After running init , customize the generated files: 1. Edit schema - Add your configuration fields to src/config.ts 2. Update defaults - Modify config/default.json with your values 3. Add environments - Create config/production.json , config/staging.json , etc. 4. Update .env.example - Document all environment variables Next Steps - Quick Start - Build your first configuration - Schema Definition - Customize your schema",
+    "headings": [
+      "zonfig init",
+      "Usage",
+      "Options",
+      "What It Creates",
+      "src/config.ts",
+      "config/default.json",
+      ".env.example",
+      "Server Configuration",
+      "Database Configuration",
+      "Debug Mode"
+    ]
+  },
+  {
+    "href": "/docs/cli",
+    "title": "CLI Overview",
+    "section": "CLI",
+    "content": "CLI Overview zonfig includes a command-line interface for initializing, analyzing, validating, and documenting your configuration. Installation The CLI is included with the zonfig package. Run commands with npx: Or install globally: Available Commands | Command | Description | |---------|-------------| | init | Create boilerplate config from a template | | analyze | Discover env vars, generate config from existing code | | validate | Validate configuration against schema | | docs | Generate documentation from schema | Which Command Should I Use? Starting Fresh → init Use init when starting a new project or adding zonfig to a project without existing configuration: Creates a template src/config.ts with example schema. Migrating Existing Project → analyze --generate Use analyze when you have an existing codebase with process.env. usage: Scans your code, discovers all environment variables, and generates a typed config based on actual usage. Already Using zonfig → validate , docs , analyze Global Options | Option | Description | |--------|-------------| | --help, -h | Show help for a command | | --version, -v | Show version number | Quick Examples Initialize New Config Creates: - src/config.ts - Schema and loader - config/default.json - Default values - .env.example - Environment template Analyze & Generate from Existing Code Validate Configuration Generate Documentation Monorepo Analysis Command Reference - init - Create boilerplate configuration - analyze - Discover, generate, and audit configuration - validate - Validate config files - docs - Generate documentation",
+    "headings": [
+      "CLI Overview",
+      "Installation",
+      "Available Commands",
+      "Which Command Should I Use?",
+      "Starting Fresh → `init`",
+      "Migrating Existing Project → `analyze --generate`",
+      "Already Using zonfig → `validate`, `docs`, `analyze`",
+      "Validate config files against schema",
+      "Generate documentation",
+      "Find unused config keys"
+    ]
+  },
+  {
+    "href": "/docs/cli/validate",
+    "title": "validate",
+    "section": "CLI",
+    "content": "zonfig validate Validate a configuration file against a schema. Usage Options | Option | Description | Required | |--------|-------------|----------| | -s, --schema | Path to schema file | Yes | | -c, --config | Path to config file | Yes | Examples Basic Validation Validate Different Environments Success Output When validation passes: Error Output When validation fails: Schema File Format The schema file must export schema , configSchema , or a default export: CI/CD Integration GitHub Actions Pre-commit Hook Exit Codes | Code | Meaning | |------|---------| | 0 | Validation successful | | 1 | Validation failed | | 2 | Schema file not found | | 3 | Config file not found | Next Steps - Validation - Understanding validation errors - zonfig docs - Generate documentation",
+    "headings": [
+      "zonfig validate",
+      "Usage",
+      "Options",
+      "Examples",
+      "Basic Validation",
+      "Validate Different Environments",
+      "Validate production config",
+      "Validate staging config",
+      "Validate development config",
+      "Success Output"
+    ]
+  },
+  {
+    "href": "/docs/guides/monorepo",
+    "title": "Monorepo Support",
+    "section": "Guides",
+    "content": "Monorepo Support Use zonfig across multiple packages in a monorepo. Overview zonfig provides built-in support for monorepos with: - Automatic monorepo detection - Per-package configuration - Shared configuration modules - CLI tools for multi-package analysis Supported Tools - Turborepo - Nx - Lerna - Rush - pnpm workspaces - Yarn workspaces - npm workspaces Project Structure Typical monorepo structure with zonfig: Shared Configuration Package Create a shared package for common configuration: Per-Package Configuration Each package defines its own schema: CLI Analysis Analyze configuration across all packages: Output Environment Variables Root .env Shared variables at repository root: Package-specific .env Override or add package-specific variables: Configuration Priority 1. Package-specific env vars (highest) 2. Root env vars 3. Package-specific config files 4. Root config files (lowest) Turborepo Integration turbo.json Best Practices 1. Shared schemas - Put common schemas in a shared package 2. Consistent prefixes - Use package-specific env prefixes (API , WEB ) 3. Root defaults - Share common defaults at repository root 4. Package overrides - Allow packages to override shared config 5. Type exports - Export types from shared config package Next Steps - Configuration Sources - Source priority and merging - Environment Profiles - Multi-environment setup",
+    "headings": [
+      "Monorepo Support",
+      "Overview",
+      "Supported Tools",
+      "Project Structure",
+      "Shared Configuration Package",
+      "Per-Package Configuration",
+      "CLI Analysis",
+      "Analyze all packages",
+      "Analyze specific package",
+      "Output"
+    ]
+  },
+  {
+    "href": "/docs/guides/secrets",
+    "title": "Secret Management",
+    "section": "Guides",
+    "content": "Secret Management Best practices for handling sensitive configuration values. Overview Secrets like API keys, database passwords, and tokens require special handling: - Never commit secrets to version control - Use environment variables or secret managers - Rotate secrets regularly - Limit access to production secrets Local Development Using .env Files Git Configuration Production Secrets Environment Variables The most common approach for production: AWS Secrets Manager HashiCorp Vault Google Secret Manager Schema Validation Mark sensitive fields in your schema: Secret Rotation Design your config to support rotation: CI/CD Integration GitHub Actions Docker Best Practices 1. Never commit secrets - Use .gitignore and pre-commit hooks 2. Use secret managers in production - AWS Secrets Manager, Vault, etc. 3. Rotate regularly - Design for rotation from the start 4. Least privilege - Only give access to secrets that are needed 5. Audit access - Log who accesses secrets and when 6. Encrypt at rest - Use encrypted secret storage 7. Different secrets per environment - Never use production secrets in development Example: Complete Setup Next Steps - Plugins - Create custom secret loaders - Environment Profiles - Environment-specific configuration",
+    "headings": [
+      "Secret Management",
+      "Overview",
+      "Local Development",
+      "Using .env Files",
+      ".env.local (gitignored)",
+      "Git Configuration",
+      ".gitignore",
+      "Production Secrets",
+      "Environment Variables",
+      "AWS Secrets Manager"
+    ]
+  },
+  {
+    "href": "/docs/guides/typescript",
+    "title": "TypeScript Setup",
+    "section": "Guides",
+    "content": "TypeScript Setup Get the best developer experience with proper TypeScript configuration. Requirements - TypeScript 5.0 or higher - Node.js 18.0 or higher tsconfig.json Recommended settings for optimal type inference: Important Settings The strict mode is essential for getting the best type inference from your Zod schemas. | Setting | Required | Description | |---------|----------|-------------| | strict | Yes | Enables strict type checking | | moduleResolution | Recommended | Use bundler or node16 | | target | Recommended | ES2022 or higher | Type Inference zonfig automatically infers types from your Zod schema: Exporting Types Export your config type for use across your application: Using Config Types Path Autocomplete With proper TypeScript setup, you get full autocomplete: Type Errors TypeScript catches configuration errors at compile time: Generic Config Function Create a typed helper for accessing config: IDE Support VS Code Install the following extensions for the best experience: - Zod Prisma Types - Better Zod intellisense - Pretty TypeScript Errors - Readable error messages Settings Common Issues \"Cannot find module 'zonfig'\" Ensure you've installed the package: Type inference not working Check that strict is enabled in tsconfig.json: ESM/CJS issues zonfig ships as ESM. If using CommonJS: Next Steps - Schema Definition - Define typed schemas - Quick Start - Get started with zonfig",
+    "headings": [
+      "TypeScript Setup",
+      "Requirements",
+      "tsconfig.json",
+      "Important Settings",
+      "Type Inference",
+      "Exporting Types",
+      "Using Config Types",
+      "Path Autocomplete",
+      "Type Errors",
+      "Generic Config Function"
+    ]
+  },
+  {
+    "href": "/docs/installation",
+    "title": "Installation",
+    "section": "Get Started",
+    "content": "Installation Get started with zonfig in your Node.js project. Requirements - Node.js 18.0 or higher - TypeScript 5.0 or higher (recommended) Package Installation Install zonfig: Zod is bundled with zonfig - no need to install it separately. Import it directly: import { z } from 'zonfig' Or with your preferred package manager: TypeScript Configuration zonfig works best with TypeScript. Ensure your tsconfig.json has the following settings: The strict mode is important for getting the best type inference from your Zod schemas. Verify Installation Create a simple test file to verify the installation: Run it to ensure everything works: Existing Project? If you already have a project with process.env. usage, zonfig can analyze your codebase and generate a typed configuration automatically: This scans your code, finds all environment variables, and creates a typed schema based on how they're used. See analyze CLI for details. Next Steps Now that you have zonfig installed, continue to the Quick Start guide to build your first typed configuration.",
+    "headings": [
+      "Installation",
+      "Requirements",
+      "Package Installation",
+      "yarn",
+      "pnpm",
+      "bun",
+      "TypeScript Configuration",
+      "Verify Installation",
+      "Existing Project?",
+      "Discover all env vars in your codebase"
+    ]
+  },
+  {
+    "href": "/docs/profiles",
+    "title": "Environment Profiles",
+    "section": "Core Concepts",
+    "content": "Environment Profiles Configure different settings for development, staging, and production environments. Basic Profile Usage Use the profile option to load environment-specific configuration: Profile Interpolation The ${PROFILE} placeholder is replaced with the active profile name: Profile-Specific Sources Define completely different source configurations per profile: Profile Defaults Set default values that apply only to specific profiles: File Organization Recommended file structure for multi-environment projects: Example Configuration Files config/default.json: config/production.json: Common Patterns Detecting Current Profile CI/CD Integration Next Steps - Configuration Sources - Learn about different source types - Validation - Validate configuration at startup",
+    "headings": [
+      "Environment Profiles",
+      "Basic Profile Usage",
+      "Profile Interpolation",
+      "Profile-Specific Sources",
+      "Profile Defaults",
+      "File Organization",
+      "Example Configuration Files",
+      "Common Patterns",
+      "Detecting Current Profile",
+      "CI/CD Integration"
+    ]
+  },
+  {
+    "href": "/docs/quick-start",
+    "title": "Quick Start",
+    "section": "Get Started",
+    "content": "Quick Start Build your first typed configuration in under 5 minutes. Migrating an existing project? If you already use process.env. in your code, run npx zonfig analyze --generate to automatically create a typed config from your existing environment variables. See analyze CLI for details. Step 1: Create Your Schema Create a new file src/config/index.ts : Step 2: Create Default Configuration Create config/default.json : Step 3: Use Environment Variables Set environment variables to override defaults: Or create a .env file: Step 4: Use Your Config Import and use your typed configuration: Understanding Source Priority Sources are processed in order, with later sources overriding earlier ones: In this example: 1. default.json provides base values 2. .env file can override specific values for local development 3. Environment variables have the highest priority for runtime configuration Error Handling If your configuration is invalid, zonfig throws a clear error at startup: Configuration is validated when defineConfig is called, not when you access values. This ensures you catch all errors at startup. Next Steps - Schema Definition - Learn more about defining schemas - Configuration Sources - Deep dive into source types - Environment Profiles - Configure different environments",
+    "headings": [
+      "Quick Start",
+      "Step 1: Create Your Schema",
+      "Step 2: Create Default Configuration",
+      "Step 3: Use Environment Variables",
+      "Step 4: Use Your Config",
+      "Understanding Source Priority",
+      "Error Handling",
+      "Next Steps"
+    ]
+  },
+  {
+    "href": "/docs/schema",
+    "title": "Schema Definition",
+    "section": "Core Concepts",
+    "content": "Schema Definition Define your configuration shape using Zod schemas for full type safety and runtime validation. Basic Schema Create a schema using Zod's type constructors: Zod Exports zonfig re-exports Zod for convenience. You can import it in two ways: If your project already uses Zod directly, you can use your own import to ensure version consistency: Default Values Use .default() to provide fallback values: Validation Rules Add validation constraints to your schema: Optional Fields Mark fields as optional when they may not be provided: Nested Objects Structure complex configurations with nested objects: Arrays Define array configurations: Enums Restrict values to specific options: Type Inference TypeScript automatically infers types from your schema: Custom Validation Add custom validation logic with .refine() : Next Steps - Configuration Sources - Load configuration from multiple sources - Validation - Understanding validation errors",
+    "headings": [
+      "Schema Definition",
+      "Basic Schema",
+      "Zod Exports",
+      "Default Values",
+      "Validation Rules",
+      "Optional Fields",
+      "Nested Objects",
+      "Arrays",
+      "Enums",
+      "Type Inference"
+    ]
+  },
+  {
+    "href": "/docs/sources/dotenv",
+    "title": "Dotenv Files",
+    "section": "Sources",
+    "content": "Dotenv Files Load configuration from .env files for local development. Basic Usage .env: Multiple Environments Load different .env files per environment: File priority (later overrides earlier): Variable Expansion Reference other variables: Multiline Values Use quotes for multiline strings: Comments Lines starting with are ignored: Combined with Env Vars Typically combine with actual environment variables: Mapping to Nested Config Dotenv files use flat keys. Map them to nested config with prefixes: .env: Schema: Best Practices Git Ignore Always gitignore sensitive files: Example Files Provide .env.example for documentation: Generate with CLI This generates .env.example from your schema. Security Notes Never commit .env files with real secrets to version control. Use .env.example with placeholder values instead. Next Steps - Environment Variables - Load from process.env - Secret Management - Handle sensitive configuration",
+    "headings": [
+      "Dotenv Files",
+      "Basic Usage",
+      "Multiple Environments",
+      "Variable Expansion",
+      "Multiline Values",
+      "Comments",
+      "Database configuration",
+      "Feature flags",
+      "Combined with Env Vars",
+      "Mapping to Nested Config"
+    ]
+  },
+  {
+    "href": "/docs/sources/env",
+    "title": "Environment Variables",
+    "section": "Sources",
+    "content": "Environment Variables Load configuration from process.env with automatic type conversion. Basic Usage Set environment variables: Naming Convention Environment variables are mapped to config paths: | Environment Variable | Config Path | |---------------------|-------------| | APP PORT | port | | APP DEBUG | debug | | APP DATABASE URL | database.url | | APP SERVER HOST | server.host | Rules: - Prefix is stripped (e.g., APP ) - Double underscore ( ) indicates nesting - Single underscores become camelCase: POOL SIZE → poolSize Prefix Use a prefix to namespace your variables: Type Conversion Values are automatically converted based on your schema: Boolean Conversion | Value | Result | |-------|--------| | \"true\" , \"1\" , \"yes\" | true | | \"false\" , \"0\" , \"no\" | false | Array Conversion Comma-separated values become arrays: Priority Environment variables typically have the highest priority: Nested Objects Use double underscore for nested paths: Case Sensitivity Environment variables are case-insensitive on Windows but case-sensitive on Unix. For consistency, use SCREAMING SNAKE CASE: Common Patterns Docker/Kubernetes CI/CD Next Steps - Dotenv Files - Load from .env files - Configuration Sources - Overview of all sources",
+    "headings": [
+      "Environment Variables",
+      "Basic Usage",
+      "Naming Convention",
+      "Prefix",
+      "Type Conversion",
+      "Boolean Conversion",
+      "Array Conversion",
+      "Priority",
+      "Nested Objects",
+      "Maps to: server.host"
+    ]
+  },
+  {
+    "href": "/docs/sources/file",
+    "title": "File Sources",
+    "section": "Sources",
+    "content": "File Sources Load configuration from JSON and YAML files. JSON Files config.json: YAML Files YAML files are automatically detected by extension: config.yaml: Optional Files Mark files as optional when they may not exist: Profile Interpolation Use ${PROFILE} to load environment-specific files: File structure: Relative Paths Paths are resolved relative to the current working directory, or you can specify a custom cwd : File Format Detection File format is detected by extension: | Extension | Format | |-----------|--------| | .json | JSON | | .yaml | YAML | | .yml | YAML | | .env | Dotenv (requires format: 'dotenv' ) | Explicit Format Override format detection: Error Handling File errors are caught and reported clearly: Best Practices 1. Use default.json for shared configuration 2. Use environment files for environment-specific overrides 3. Keep local.json gitignored for developer-specific settings 4. Mark optional files to prevent errors in CI/CD Next Steps - Environment Variables - Override with env vars - Dotenv Files - Load .env files",
+    "headings": [
+      "File Sources",
+      "JSON Files",
+      "YAML Files",
+      "Optional Files",
+      "Profile Interpolation",
+      "Relative Paths",
+      "File Format Detection",
+      "Explicit Format",
+      "Error Handling",
+      "Best Practices"
+    ]
+  },
+  {
+    "href": "/docs/sources",
+    "title": "Configuration Sources",
+    "section": "Core Concepts",
+    "content": "Configuration Sources zonfig can load configuration from multiple sources, merging them in order of priority. Source Priority Sources are loaded in the order they're defined. Later sources override earlier ones: Available Source Types File Sources Load from JSON or YAML files: Learn more about File Sources Environment Variables Load from process.env : Learn more about Environment Variables Dotenv Files Load from .env files: Learn more about Dotenv Files Plugins Load from external sources like secret managers: Learn more about Plugins Plain Objects Useful for testing or hardcoded values: Optional Sources Mark sources as optional when they may not exist: Profile-Based Sources Use ${PROFILE} interpolation for environment-specific files: This loads ./config/production.json when NODE ENV=production . Deep Merging Objects are deeply merged, arrays are replaced: Next Steps - File Sources - JSON and YAML configuration - Environment Variables - Load from process.env - Plugins - Custom source loaders",
+    "headings": [
+      "Configuration Sources",
+      "Source Priority",
+      "Available Source Types",
+      "File Sources",
+      "Environment Variables",
+      "Dotenv Files",
+      "Plugins",
+      "Plain Objects",
+      "Optional Sources",
+      "Profile-Based Sources"
+    ]
+  },
+  {
+    "href": "/docs/sources/plugins",
+    "title": "Plugins",
+    "section": "Sources",
+    "content": "Plugins Extend zonfig with custom configuration sources like AWS Secrets Manager, HashiCorp Vault, and more. Using Plugins Creating a Plugin Use definePlugin to create a custom source: Plugin Interface AWS Secrets Manager Example HashiCorp Vault Example Using Multiple Plugins Plugin Management Error Handling Plugins should throw descriptive errors: Profile-Aware Plugins Use the context to load profile-specific config: Next Steps - Configuration Sources - Overview of all sources - Secret Management - Best practices for secrets",
+    "headings": [
+      "Plugins",
+      "Using Plugins",
+      "Creating a Plugin",
+      "Plugin Interface",
+      "AWS Secrets Manager Example",
+      "HashiCorp Vault Example",
+      "Using Multiple Plugins",
+      "Plugin Management",
+      "Error Handling",
+      "Profile-Aware Plugins"
+    ]
+  },
+  {
+    "href": "/docs/validation",
+    "title": "Validation",
+    "section": "Core Concepts",
+    "content": "Validation zonfig validates your configuration at startup, catching errors before your application runs. How Validation Works When you call defineConfig() , zonfig: 1. Loads configuration from all sources 2. Merges them in priority order 3. Validates against your Zod schema 4. Throws ConfigValidationError if validation fails Error Messages Validation errors are clear and actionable: ConfigValidationError The error object provides structured access to validation failures: Validation Rules Built-in Validators Custom Validators Use .refine() for custom validation logic: Handling Missing Values Required vs Optional Coercion Automatically convert strings to other types: Source Tracking zonfig tracks where each value came from: Best Practices 1. Validate early - Call defineConfig() at application startup 2. Fail fast - Don't catch validation errors silently 3. Use descriptive messages - Add custom error messages to refine() 4. Log errors clearly - Use error.formatErrors() for readable output Next Steps - Schema Definition - Define robust schemas - Error Handling - Handle configuration errors",
+    "headings": [
+      "Validation",
+      "How Validation Works",
+      "Error Messages",
+      "ConfigValidationError",
+      "Validation Rules",
+      "Built-in Validators",
+      "Custom Validators",
+      "Handling Missing Values",
+      "Required vs Optional",
+      "Coercion"
+    ]
+  }
+]

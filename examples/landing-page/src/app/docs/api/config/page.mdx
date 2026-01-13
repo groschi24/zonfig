@@ -1,0 +1,194 @@
+# Config Object
+
+The Config object returned by `defineConfig()` provides type-safe access to your configuration.
+
+## Overview
+
+```typescript
+const config = await defineConfig({
+  schema: z.object({
+    port: z.number(),
+    database: z.object({
+      url: z.string(),
+    }),
+  }),
+  sources: [...],
+});
+
+// Access configuration values
+const port = config.get('port');
+const dbUrl = config.get('database.url');
+```
+
+## Methods
+
+### get(path)
+
+Get a configuration value by dot-notation path.
+
+```typescript
+config.get('port')           // number
+config.get('database.url')   // string
+config.get('server.host')    // string
+```
+
+**Type Safety:**
+```typescript
+// TypeScript knows the return type
+const port: number = config.get('port');
+
+// TypeScript error: 'invalid' doesn't exist in schema
+config.get('invalid');
+
+// TypeScript error: 'database' is an object, not a string
+const db: string = config.get('database');
+```
+
+### getAll()
+
+Get the entire configuration object.
+
+```typescript
+const all = config.getAll();
+// {
+//   port: 3000,
+//   database: {
+//     url: 'postgres://localhost/app'
+//   }
+// }
+```
+
+The returned object is deeply frozen and cannot be modified.
+
+### has(path)
+
+Check if a path exists and has a non-undefined value.
+
+```typescript
+if (config.has('database.replica')) {
+  const replicaUrl = config.get('database.replica.url');
+}
+```
+
+### getSource(path)
+
+Get the source of a specific configuration value.
+
+```typescript
+const source = config.getSource('database.url');
+// 'environment variable APP_DATABASE_URL'
+// or 'file ./config.json'
+// or 'plugin aws-secrets'
+```
+
+Useful for debugging where values come from.
+
+## Immutability
+
+The Config object and all its values are frozen:
+
+```typescript
+const config = await defineConfig({ schema, sources });
+const all = config.getAll();
+
+// This will throw an error
+all.port = 8080;  // TypeError: Cannot assign to read only property
+
+// This will also throw
+config.getAll().database.url = 'new-url';  // TypeError
+```
+
+## Type Inference
+
+Types are automatically inferred from your Zod schema:
+
+```typescript
+const schema = z.object({
+  port: z.number(),
+  host: z.string().optional(),
+  debug: z.boolean().default(false),
+  tags: z.array(z.string()),
+});
+
+const config = await defineConfig({ schema, sources: [] });
+
+// All types are inferred correctly
+const port: number = config.get('port');
+const host: string | undefined = config.get('host');
+const debug: boolean = config.get('debug');
+const tags: string[] = config.get('tags');
+```
+
+## Autocomplete
+
+Your IDE provides full autocomplete for configuration paths:
+
+```typescript
+config.get('p')  // Suggests: 'port'
+config.get('database.')  // Suggests: 'database.url', 'database.pool'
+```
+
+## Nested Access
+
+Access nested values with dot notation:
+
+```typescript
+const schema = z.object({
+  server: z.object({
+    host: z.string(),
+    port: z.number(),
+    ssl: z.object({
+      enabled: z.boolean(),
+      cert: z.string().optional(),
+    }),
+  }),
+});
+
+// Access at any depth
+config.get('server.host');
+config.get('server.port');
+config.get('server.ssl.enabled');
+config.get('server.ssl.cert');
+
+// Get entire nested object
+config.get('server');       // { host, port, ssl }
+config.get('server.ssl');   // { enabled, cert }
+```
+
+## Usage Patterns
+
+### Dependency Injection
+
+```typescript
+// config.ts
+export const config = await defineConfig({ schema, sources });
+
+// database.ts
+import { config } from './config';
+
+export function createConnection() {
+  return new Pool({
+    connectionString: config.get('database.url'),
+    max: config.get('database.pool'),
+  });
+}
+```
+
+### Module Initialization
+
+```typescript
+const config = await defineConfig({ schema, sources });
+
+// Pass specific values to modules
+const server = createServer({
+  port: config.get('server.port'),
+  host: config.get('server.host'),
+});
+
+const db = createDatabase(config.get('database'));
+```
+
+## Next Steps
+
+- [defineConfig](/docs/api/define-config) - Configuration options
+- [Types](/docs/api/types) - TypeScript types reference

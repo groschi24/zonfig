@@ -1,0 +1,125 @@
+# CLI Overview
+
+zonfig includes a command-line interface for initializing, analyzing, validating, and documenting your configuration.
+
+## Installation
+
+The CLI is included with the zonfig package. Run commands with npx:
+
+```bash
+npx zonfig <command> [options]
+```
+
+Or install globally:
+
+```bash
+npm install -g zonfig
+zonfig <command> [options]
+```
+
+## Available Commands
+
+| Command | Description |
+|---------|-------------|
+| [init](/docs/cli/init) | Create boilerplate config from a template |
+| [analyze](/docs/cli/analyze) | Discover env vars, generate config from existing code |
+| [validate](/docs/cli/validate) | Validate configuration against schema |
+| [docs](/docs/cli/docs) | Generate documentation from schema |
+
+## Which Command Should I Use?
+
+### Starting Fresh → `init`
+
+Use `init` when starting a new project or adding zonfig to a project without existing configuration:
+
+```bash
+npx zonfig init
+```
+
+Creates a template `src/config.ts` with example schema.
+
+### Migrating Existing Project → `analyze --generate`
+
+Use `analyze` when you have an existing codebase with `process.env.*` usage:
+
+```bash
+npx zonfig analyze --generate
+```
+
+Scans your code, discovers all environment variables, and generates a typed config based on actual usage.
+
+### Already Using zonfig → `validate`, `docs`, `analyze`
+
+```bash
+# Validate config files against schema
+npx zonfig validate -s ./src/config.ts -c ./config/production.json
+
+# Generate documentation
+npx zonfig docs -s ./src/config.ts
+
+# Find unused config keys
+npx zonfig analyze --config ./src/config.ts
+```
+
+## Global Options
+
+| Option | Description |
+|--------|-------------|
+| `--help, -h` | Show help for a command |
+| `--version, -v` | Show version number |
+
+## Quick Examples
+
+### Initialize New Config
+
+```bash
+npx zonfig init
+```
+
+Creates:
+- `src/config.ts` - Schema and loader
+- `config/default.json` - Default values
+- `.env.example` - Environment template
+
+### Analyze & Generate from Existing Code
+
+```bash
+# First, discover what's in your codebase
+npx zonfig analyze
+
+# Then generate config from discovered usage
+npx zonfig analyze --generate
+```
+
+### Validate Configuration
+
+```bash
+npx zonfig validate -s ./src/config.ts -c ./config/production.json
+```
+
+### Generate Documentation
+
+```bash
+# Generate all formats
+npx zonfig docs -s ./src/config.ts
+
+# Generate specific format
+npx zonfig docs -s ./src/config.ts -f markdown -o ./docs
+```
+
+### Monorepo Analysis
+
+```bash
+# Analyze all packages
+npx zonfig analyze --all
+
+# Generate config for all packages
+npx zonfig analyze --all --generate
+```
+
+## Command Reference
+
+- [init](/docs/cli/init) - Create boilerplate configuration
+- [analyze](/docs/cli/analyze) - Discover, generate, and audit configuration
+- [validate](/docs/cli/validate) - Validate config files
+- [docs](/docs/cli/docs) - Generate documentation

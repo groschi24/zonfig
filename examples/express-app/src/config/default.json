@@ -1,0 +1,29 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 3000
+  },
+  "database": {
+    "url": "postgres://localhost:5432/myapp",
+    "poolSize": 10,
+    "ssl": false
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379
+  },
+  "auth": {
+    "jwtSecret": "development-secret-change-in-production!",
+    "jwtExpiresIn": "7d",
+    "bcryptRounds": 12
+  },
+  "features": {
+    "enableCache": true,
+    "enableRateLimit": true,
+    "maxRequestsPerMinute": 100
+  },
+  "logging": {
+    "level": "info",
+    "format": "json"
+  }
+}

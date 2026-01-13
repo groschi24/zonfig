@@ -1,0 +1,135 @@
+# zonfig init
+
+Scaffold a new zonfig configuration setup in your project.
+
+## Usage
+
+```bash
+npx zonfig init [options]
+```
+
+## Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-d, --dir <directory>` | Target directory | `.` (current) |
+
+## What It Creates
+
+Running `zonfig init` creates:
+
+### src/config.ts
+
+Schema definition and configuration loader:
+
+```typescript
+import { defineConfig, z } from 'zonfig';
+
+export const schema = z.object({
+  server: z.object({
+    host: z.string().default('localhost'),
+    port: z.number().default(3000),
+  }),
+  database: z.object({
+    url: z.string().url(),
+    pool: z.number().default(10),
+  }),
+  debug: z.boolean().default(false),
+});
+
+export type Config = z.infer<typeof schema>;
+
+export async function loadConfig() {
+  return defineConfig({
+    schema,
+    sources: [
+      { type: 'file', path: './config/default.json' },
+      { type: 'file', path: './config/${PROFILE}.json', optional: true },
+      { type: 'file', path: './.env', format: 'dotenv', optional: true },
+      { type: 'env', prefix: 'APP_' },
+    ],
+    profile: process.env.NODE_ENV ?? 'development',
+  });
+}
+```
+
+### config/default.json
+
+Default configuration values:
+
+```json
+{
+  "server": {
+    "host": "localhost",
+    "port": 3000
+  },
+  "database": {
+    "pool": 10
+  },
+  "debug": false
+}
+```
+
+### .env.example
+
+Environment variable template:
+
+```bash
+# Server Configuration
+APP_SERVER__HOST=localhost
+APP_SERVER__PORT=3000
+
+# Database Configuration
+APP_DATABASE__URL=postgres://localhost/myapp
+APP_DATABASE__POOL=10
+
+# Debug Mode
+APP_DEBUG=false
+```
+
+## Example
+
+```bash
+# Initialize in current directory
+npx zonfig init
+
+# Initialize in a specific directory
+npx zonfig init -d ./my-project
+```
+
+## Output
+
+```
+Creating zonfig configuration...
+
+  Created: src/config.ts
+  Created: config/default.json
+  Created: .env.example
+
+Setup complete! Next steps:
+
+  1. Install zonfig:
+     npm install zonfig
+
+  2. Import and use the config:
+     import { loadConfig } from './src/config.js';
+     const config = await loadConfig();
+     console.log(config.get('server.port'));
+
+  3. Generate documentation:
+     npx zonfig docs -s ./src/config.ts
+```
+
+## Customization
+
+After running `init`, customize the generated files:
+
+1. **Edit schema** - Add your configuration fields to `src/config.ts`
+2. **Update defaults** - Modify `config/default.json` with your values
+3. **Add environments** - Create `config/production.json`, `config/staging.json`, etc.
+4. **Update .env.example** - Document all environment variables
+
+## Next Steps
+
+- [Quick Start](/docs/quick-start) - Build your first configuration
+- [Schema Definition](/docs/schema) - Customize your schema

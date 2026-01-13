@@ -1,0 +1,169 @@
+# Schema Definition
+
+Define your configuration shape using Zod schemas for full type safety and runtime validation.
+
+## Basic Schema
+
+Create a schema using Zod's type constructors:
+
+```typescript
+import { defineConfig, z } from 'zonfig';
+
+const config = await defineConfig({
+  schema: z.object({
+    port: z.number(),
+    host: z.string(),
+    debug: z.boolean(),
+  }),
+  sources: [{ type: 'env', prefix: 'APP_' }],
+});
+```
+
+## Zod Exports
+
+zonfig re-exports Zod for convenience. You can import it in two ways:
+
+```typescript
+// Short form (recommended)
+import { z } from 'zonfig';
+
+// Explicit form (avoids conflicts if you use Zod elsewhere)
+import { zod } from 'zonfig';
+```
+
+<Callout type="info">
+If your project already uses Zod directly, you can use your own import to ensure version consistency:
+
+```typescript
+import { defineConfig } from 'zonfig';
+import { z } from 'zod'; // your own Zod
+```
+</Callout>
+
+## Default Values
+
+Use `.default()` to provide fallback values:
+
+```typescript
+const schema = z.object({
+  server: z.object({
+    host: z.string().default('localhost'),
+    port: z.number().default(3000),
+  }),
+  database: z.object({
+    pool: z.number().default(10),
+    timeout: z.number().default(30000),
+  }),
+});
+```
+
+## Validation Rules
+
+Add validation constraints to your schema:
+
+```typescript
+const schema = z.object({
+  port: z.number().min(1).max(65535),
+  email: z.string().email(),
+  url: z.string().url(),
+  apiKey: z.string().min(32),
+  retries: z.number().int().positive(),
+});
+```
+
+## Optional Fields
+
+Mark fields as optional when they may not be provided:
+
+```typescript
+const schema = z.object({
+  required: z.string(),
+  optional: z.string().optional(),
+  withDefault: z.string().default('fallback'),
+});
+```
+
+## Nested Objects
+
+Structure complex configurations with nested objects:
+
+```typescript
+const schema = z.object({
+  server: z.object({
+    host: z.string(),
+    port: z.number(),
+  }),
+  database: z.object({
+    primary: z.object({
+      url: z.string().url(),
+      pool: z.number(),
+    }),
+    replica: z.object({
+      url: z.string().url(),
+      pool: z.number(),
+    }).optional(),
+  }),
+});
+```
+
+## Arrays
+
+Define array configurations:
+
+```typescript
+const schema = z.object({
+  allowedOrigins: z.array(z.string().url()),
+  ports: z.array(z.number()).min(1),
+  features: z.array(z.enum(['auth', 'logging', 'metrics'])),
+});
+```
+
+## Enums
+
+Restrict values to specific options:
+
+```typescript
+const schema = z.object({
+  logLevel: z.enum(['debug', 'info', 'warn', 'error']),
+  environment: z.enum(['development', 'staging', 'production']),
+});
+```
+
+## Type Inference
+
+TypeScript automatically infers types from your schema:
+
+```typescript
+const schema = z.object({
+  port: z.number(),
+  host: z.string(),
+});
+
+const config = await defineConfig({ schema, sources: [] });
+
+// TypeScript knows these types
+const port: number = config.get('port');
+const host: string = config.get('host');
+
+// TypeScript error: 'invalid' doesn't exist
+config.get('invalid');
+```
+
+## Custom Validation
+
+Add custom validation logic with `.refine()`:
+
+```typescript
+const schema = z.object({
+  minPool: z.number(),
+  maxPool: z.number(),
+}).refine(
+  (data) => data.maxPool >= data.minPool,
+  { message: 'maxPool must be >= minPool' }
+);
+```
+
+## Next Steps
+
+- [Configuration Sources](/docs/sources) - Load configuration from multiple sources
+- [Validation](/docs/validation) - Understanding validation errors

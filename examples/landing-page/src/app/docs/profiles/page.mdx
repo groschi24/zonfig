@@ -1,0 +1,153 @@
+# Environment Profiles
+
+Configure different settings for development, staging, and production environments.
+
+## Basic Profile Usage
+
+Use the `profile` option to load environment-specific configuration:
+
+```typescript
+const config = await defineConfig({
+  schema,
+  sources: [
+    { type: 'file', path: './config/default.json' },
+    { type: 'file', path: './config/${PROFILE}.json', optional: true },
+    { type: 'env', prefix: 'APP_' },
+  ],
+  profile: process.env.NODE_ENV ?? 'development',
+});
+```
+
+## Profile Interpolation
+
+The `${PROFILE}` placeholder is replaced with the active profile name:
+
+```typescript
+// When profile = 'production'
+{ type: 'file', path: './config/${PROFILE}.json' }
+// Becomes: ./config/production.json
+
+// When profile = 'development'
+{ type: 'file', path: '.env.${PROFILE}', format: 'dotenv' }
+// Becomes: .env.development
+```
+
+## Profile-Specific Sources
+
+Define completely different source configurations per profile:
+
+```typescript
+const config = await defineConfig({
+  schema,
+  profiles: {
+    development: {
+      sources: [
+        { type: 'file', path: './config/dev.json' },
+        { type: 'file', path: './.env.local', format: 'dotenv', optional: true },
+      ],
+      defaults: {
+        debug: true,
+        logLevel: 'debug',
+      },
+    },
+    production: {
+      sources: [
+        { type: 'plugin', name: 'aws-secrets', options: { secretId: 'prod/app' } },
+        { type: 'env', prefix: 'APP_' },
+      ],
+      defaults: {
+        debug: false,
+        logLevel: 'error',
+      },
+    },
+  },
+  profile: process.env.NODE_ENV ?? 'development',
+});
+```
+
+## Profile Defaults
+
+Set default values that apply only to specific profiles:
+
+```typescript
+profiles: {
+  development: {
+    sources: [...],
+    defaults: {
+      server: { port: 3000 },
+      debug: true,
+    },
+  },
+  production: {
+    sources: [...],
+    defaults: {
+      server: { port: 8080 },
+      debug: false,
+    },
+  },
+}
+```
+
+## File Organization
+
+Recommended file structure for multi-environment projects:
+
+```
+config/
+├── default.json      # Shared defaults
+├── development.json  # Dev overrides
+├── staging.json      # Staging overrides
+├── production.json   # Production overrides
+└── local.json        # Local overrides (gitignored)
+```
+
+## Example Configuration Files
+
+**config/default.json:**
+```json
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 3000
+  },
+  "database": {
+    "pool": 10
+  }
+}
+```
+
+**config/production.json:**
+```json
+{
+  "server": {
+    "port": 8080
+  },
+  "database": {
+    "pool": 50
+  }
+}
+```
+
+## Common Patterns
+
+### Detecting Current Profile
+
+```typescript
+const profile = process.env.NODE_ENV ?? 'development';
+const isDev = profile === 'development';
+const isProd = profile === 'production';
+```
+
+### CI/CD Integration
+
+```yaml
+# GitHub Actions example
+env:
+  NODE_ENV: production
+  APP_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+```
+
+## Next Steps
+
+- [Configuration Sources](/docs/sources) - Learn about different source types
+- [Validation](/docs/validation) - Validate configuration at startup

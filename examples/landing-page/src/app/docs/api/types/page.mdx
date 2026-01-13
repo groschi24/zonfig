@@ -1,0 +1,253 @@
+# Types
+
+TypeScript type definitions exported by zonfig.
+
+## Core Types
+
+### ConfigOptions
+
+Options for `defineConfig()`:
+
+```typescript
+interface ConfigOptions<TSchema extends z.ZodType> {
+  schema: TSchema;
+  sources?: Source[];
+  profile?: string;
+  profiles?: Record<string, ProfileConfig>;
+  cwd?: string;
+}
+```
+
+### Source
+
+Configuration source definition:
+
+```typescript
+type Source = EnvSource | FileSource | ObjectSource | PluginSource;
+
+interface EnvSource {
+  type: 'env';
+  prefix?: string;
+}
+
+interface FileSource {
+  type: 'file';
+  path: string;
+  format?: 'json' | 'yaml' | 'dotenv';
+  optional?: boolean;
+}
+
+interface ObjectSource {
+  type: 'object';
+  data: Record<string, unknown>;
+}
+
+interface PluginSource {
+  type: 'plugin';
+  name: string;
+  options?: Record<string, unknown>;
+}
+```
+
+### ProfileConfig
+
+Profile-specific configuration:
+
+```typescript
+interface ProfileConfig {
+  sources?: Source[];
+  defaults?: Record<string, unknown>;
+}
+```
+
+## Config Types
+
+### Config
+
+The configuration instance returned by `defineConfig()`:
+
+```typescript
+interface Config<T> {
+  get<P extends PathsOf<T>>(path: P): ValueAt<T, P>;
+  getAll(): Readonly<T>;
+  has(path: string): boolean;
+  getSource(path: string): string | undefined;
+}
+```
+
+### PathsOf
+
+Utility type that extracts all valid dot-notation paths from a type:
+
+```typescript
+type PathsOf<T> = /* recursive type */
+
+// Example
+type Schema = {
+  server: {
+    host: string;
+    port: number;
+  };
+  debug: boolean;
+};
+
+type Paths = PathsOf<Schema>;
+// 'server' | 'server.host' | 'server.port' | 'debug'
+```
+
+### ValueAt
+
+Utility type that gets the value type at a specific path:
+
+```typescript
+type ValueAt<T, P extends string> = /* recursive type */
+
+// Example
+type Schema = {
+  server: {
+    host: string;
+    port: number;
+  };
+};
+
+type HostType = ValueAt<Schema, 'server.host'>;  // string
+type PortType = ValueAt<Schema, 'server.port'>;  // number
+type ServerType = ValueAt<Schema, 'server'>;     // { host: string; port: number }
+```
+
+## Plugin Types
+
+### Plugin
+
+Plugin definition:
+
+```typescript
+interface Plugin<T = unknown> {
+  name: string;
+  load: (options: T, context: LoaderContext) => Promise<Record<string, unknown>>;
+  validate?: (options: T) => boolean | string;
+}
+```
+
+### DefinePluginOptions
+
+Options for `definePlugin()`:
+
+```typescript
+interface DefinePluginOptions<T> {
+  name: string;
+  load: (options: T, context: LoaderContext) => Promise<Record<string, unknown>>;
+  validate?: (options: T) => boolean | string;
+}
+```
+
+### LoaderContext
+
+Context passed to loaders and plugins:
+
+```typescript
+interface LoaderContext {
+  profile?: string;
+  cwd: string;
+}
+```
+
+## Error Types
+
+### ConfigValidationError
+
+Thrown when configuration validation fails:
+
+```typescript
+class ConfigValidationError extends Error {
+  errors: ValidationErrorDetail[];
+  formatErrors(): string;
+}
+
+interface ValidationErrorDetail {
+  path: string[];
+  message: string;
+  received?: unknown;
+  source?: string;
+}
+```
+
+### ConfigFileNotFoundError
+
+Thrown when a required config file is missing:
+
+```typescript
+class ConfigFileNotFoundError extends Error {
+  path: string;
+}
+```
+
+### ConfigParseError
+
+Thrown when a config file cannot be parsed:
+
+```typescript
+class ConfigParseError extends Error {
+  path: string;
+  cause: Error;
+}
+```
+
+### PluginNotFoundError
+
+Thrown when a plugin is not registered:
+
+```typescript
+class PluginNotFoundError extends Error {
+  pluginName: string;
+}
+```
+
+## Documentation Types
+
+### DocFormat
+
+Output format for documentation generation:
+
+```typescript
+type DocFormat = 'markdown' | 'json-schema' | 'env-example';
+```
+
+### DocOptions
+
+Options for `generateDocs()`:
+
+```typescript
+interface DocOptions {
+  format: DocFormat;
+  prefix?: string;      // For env-example
+  title?: string;       // For markdown
+  includeDefaults?: boolean;
+}
+```
+
+## Importing Types
+
+```typescript
+import type {
+  ConfigOptions,
+  Source,
+  EnvSource,
+  FileSource,
+  ObjectSource,
+  PluginSource,
+  ProfileConfig,
+  Plugin,
+  DefinePluginOptions,
+  LoaderContext,
+  DocFormat,
+  DocOptions,
+  PathsOf,
+  ValueAt,
+} from 'zonfig';
+```
+
+## Next Steps
+
+- [defineConfig](/docs/api/define-config) - API reference
+- [Config Object](/docs/api/config) - Working with config

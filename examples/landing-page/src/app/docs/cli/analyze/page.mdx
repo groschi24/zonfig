@@ -1,0 +1,313 @@
+# zonfig analyze
+
+Analyze your codebase to discover configuration usage, generate zonfig setup from existing code, and find unused config keys.
+
+## Usage
+
+```bash
+npx zonfig analyze [options]
+```
+
+## Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--config, -c` | Path to existing config file | Auto-detect |
+| `--generate, -g` | Generate zonfig config from discovered usage | `false` |
+| `--output, -o` | Output directory for generated files | `./src` |
+| `--all` | Analyze all packages in a monorepo | `false` |
+| `--package, -p` | Analyze a specific package by name | - |
+| `--format` | Output format: `text`, `json` | `text` |
+
+## Modes
+
+### 1. Discovery Mode (Default)
+
+Scan your codebase to discover environment variables and config patterns:
+
+```bash
+npx zonfig analyze
+```
+
+Output:
+
+```
+Scanning codebase...
+
+Environment Variables Found: 8
+  DATABASE_URL          (src/db.ts:5, src/migrate.ts:12)
+  JWT_SECRET            (src/auth.ts:8)
+  API_KEY               (src/api/client.ts:3)
+  PORT                  (src/server.ts:10)
+  HOST                  (src/server.ts:11)
+  NODE_ENV              (src/index.ts:1)
+  REDIS_URL             (src/cache.ts:4)
+  LOG_LEVEL             (src/logger.ts:7)
+
+Config Files Found: 2
+  config/default.json   (12 keys)
+  config/production.json (3 keys)
+
+Run with --generate to create zonfig configuration.
+```
+
+### 2. Generate Mode
+
+Generate zonfig configuration from discovered usage:
+
+```bash
+npx zonfig analyze --generate
+```
+
+This creates:
+
+```
+Generating zonfig configuration...
+
+  Created: src/config.ts
+  Created: config/default.json (merged from existing)
+  Created: .env.example
+
+Generated schema with 8 fields:
+  - database.url (from DATABASE_URL)
+  - jwt.secret (from JWT_SECRET)
+  - api.key (from API_KEY)
+  - server.port (from PORT)
+  - server.host (from HOST)
+  - redis.url (from REDIS_URL)
+  - logging.level (from LOG_LEVEL)
+
+Next steps:
+  1. Review generated src/config.ts
+  2. Update your code to use: import { loadConfig } from './config'
+  3. Replace process.env.* with config.get('...')
+```
+
+#### Generated Files
+
+**src/config.ts** - Schema inferred from usage:
+
+```typescript
+import { defineConfig, z } from 'zonfig';
+
+export const schema = z.object({
+  database: z.object({
+    url: z.string().url(),
+  }),
+  jwt: z.object({
+    secret: z.string().min(32),
+  }),
+  api: z.object({
+    key: z.string(),
+  }),
+  server: z.object({
+    port: z.number().default(3000),
+    host: z.string().default('localhost'),
+  }),
+  redis: z.object({
+    url: z.string().url().optional(),
+  }),
+  logging: z.object({
+    level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  }),
+});
+
+export type Config = z.infer<typeof schema>;
+
+export async function loadConfig() {
+  return defineConfig({
+    schema,
+    sources: [
+      { type: 'file', path: './config/default.json' },
+      { type: 'file', path: './config/${PROFILE}.json', optional: true },
+      { type: 'env', prefix: 'APP_' },
+    ],
+    profile: process.env.NODE_ENV ?? 'development',
+  });
+}
+```
+
+### 3. Audit Mode
+
+If you already have zonfig set up, analyze finds unused configuration:
+
+```bash
+npx zonfig analyze --config ./src/config.ts
+```
+
+Output:
+
+```
+Configuration Audit
+===================
+
+Schema Keys: 12
+Used Keys: 10
+Unused Keys: 2
+
+Used Configuration:
+  ✓ server.port          (3 usages)
+  ✓ server.host          (2 usages)
+  ✓ database.url         (5 usages)
+  ✓ database.pool        (1 usage)
+  ...
+
+Unused Configuration:
+  ✗ features.legacy      (0 usages) - consider removing
+  ✗ debug.verbose        (0 usages) - consider removing
+
+Usage Locations:
+  server.port:
+    - src/server.ts:15
+    - src/app.ts:8
+    - tests/server.test.ts:12
+```
+
+## Monorepo Support
+
+### Analyze All Packages
+
+```bash
+npx zonfig analyze --all
+```
+
+Output:
+
+```
+Monorepo Analysis
+=================
+
+Detected: pnpm workspaces
+Packages found: 3
+
+Analyzing packages/api...
+  Found: 5 env vars, 2 config files
+
+Analyzing packages/web...
+  Found: 3 env vars, 1 config file
+
+Analyzing packages/worker...
+  Found: 4 env vars, 1 config file
+
+Shared env vars across packages:
+  DATABASE_URL    (api, worker)
+  LOG_LEVEL       (api, web, worker)
+
+Run with --generate to create zonfig config for each package.
+```
+
+### Generate for Monorepo
+
+```bash
+npx zonfig analyze --all --generate
+```
+
+Creates config for each package:
+
+```
+Generating zonfig configuration...
+
+packages/api:
+  Created: packages/api/src/config.ts
+  Created: packages/api/config/default.json
+
+packages/web:
+  Created: packages/web/src/config.ts
+  Created: packages/web/config/default.json
+
+packages/worker:
+  Created: packages/worker/src/config.ts
+  Created: packages/worker/config/default.json
+
+Shared config package recommended:
+  Consider creating packages/shared/config for:
+  - database.url
+  - logging.level
+```
+
+### Analyze Specific Package
+
+```bash
+npx zonfig analyze --package @myapp/api --generate
+```
+
+## JSON Output
+
+Get machine-readable output:
+
+```bash
+npx zonfig analyze --format json --output analysis.json
+```
+
+```json
+{
+  "discovered": {
+    "envVars": [
+      {
+        "name": "DATABASE_URL",
+        "locations": [
+          { "file": "src/db.ts", "line": 5 },
+          { "file": "src/migrate.ts", "line": 12 }
+        ],
+        "suggestedPath": "database.url",
+        "suggestedType": "string"
+      }
+    ],
+    "configFiles": [
+      {
+        "path": "config/default.json",
+        "keys": ["server.port", "server.host", "database.pool"]
+      }
+    ]
+  },
+  "audit": {
+    "schemaKeys": 12,
+    "usedKeys": 10,
+    "unusedKeys": ["features.legacy", "debug.verbose"]
+  }
+}
+```
+
+## CI/CD Integration
+
+### Check for Unused Config
+
+```yaml
+# .github/workflows/ci.yml
+- name: Audit config usage
+  run: |
+    npx zonfig analyze --config ./src/config.ts --format json > audit.json
+    if jq -e '.audit.unusedKeys | length > 0' audit.json; then
+      echo "::warning::Unused configuration keys found"
+      jq '.audit.unusedKeys' audit.json
+    fi
+```
+
+### Detect Undocumented Env Vars
+
+```yaml
+- name: Check env var documentation
+  run: |
+    npx zonfig analyze --format json > analysis.json
+    # Compare discovered vars with .env.example
+    node scripts/check-env-docs.js
+```
+
+## Smart Inference
+
+The analyzer infers types and validation from usage patterns:
+
+| Pattern | Inferred Type |
+|---------|---------------|
+| `parseInt(process.env.PORT)` | `z.number()` |
+| `process.env.DEBUG === 'true'` | `z.boolean()` |
+| `process.env.DATABASE_URL` (contains URL) | `z.string().url()` |
+| `process.env.LOG_LEVEL` (limited values) | `z.enum([...])` |
+| `process.env.API_KEY \|\| 'default'` | `z.string().default('default')` |
+| `process.env.OPTIONAL_VAR` (with fallback) | `z.string().optional()` |
+
+## Next Steps
+
+- [init](/docs/cli/init) - Create config from scratch instead
+- [Monorepo Support](/docs/guides/monorepo) - Multi-package configuration
+- [Schema Definition](/docs/schema) - Customize generated schema

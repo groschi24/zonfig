@@ -1,0 +1,149 @@
+# Quick Start
+
+Build your first typed configuration in under 5 minutes.
+
+<Callout type="tip">
+**Migrating an existing project?** If you already use `process.env.*` in your code, run `npx zonfig analyze --generate` to automatically create a typed config from your existing environment variables. See [analyze CLI](/docs/cli/analyze) for details.
+</Callout>
+
+## Step 1: Create Your Schema
+
+Create a new file `src/config/index.ts`:
+
+```typescript
+import { defineConfig, z } from 'zonfig';
+
+// Define your configuration schema using Zod
+const schema = z.object({
+  server: z.object({
+    host: z.string().default('localhost'),
+    port: z.number().default(3000),
+  }),
+  database: z.object({
+    url: z.string().url(),
+    pool: z.number().min(1).max(100).default(10),
+  }),
+  features: z.object({
+    enableCache: z.boolean().default(true),
+    maxCacheSize: z.number().default(1000),
+  }),
+});
+
+// Export the typed config
+export const config = await defineConfig({
+  schema,
+  sources: [
+    { type: 'file', path: './config/default.json' },
+    { type: 'env', prefix: 'APP_' },
+  ],
+});
+
+// Export the inferred type for use elsewhere
+export type AppConfig = typeof config;
+```
+
+## Step 2: Create Default Configuration
+
+Create `config/default.json`:
+
+```json
+{
+  "server": {
+    "host": "localhost",
+    "port": 3000
+  },
+  "database": {
+    "url": "postgresql://localhost:5432/myapp",
+    "pool": 10
+  },
+  "features": {
+    "enableCache": true,
+    "maxCacheSize": 1000
+  }
+}
+```
+
+## Step 3: Use Environment Variables
+
+Set environment variables to override defaults:
+
+```bash
+export APP_SERVER_PORT=8080
+export APP_DATABASE_URL=postgresql://prod-db:5432/myapp
+```
+
+Or create a `.env` file:
+
+```
+APP_SERVER_PORT=8080
+APP_DATABASE_URL=postgresql://prod-db:5432/myapp
+```
+
+## Step 4: Use Your Config
+
+Import and use your typed configuration:
+
+```typescript
+import { config } from './config';
+
+// Full autocomplete and type safety
+const port = config.get('server.port');     // number
+const dbUrl = config.get('database.url');   // string
+const cache = config.get('features.enableCache'); // boolean
+
+// Get nested objects
+const serverConfig = config.get('server');  // { host: string, port: number }
+
+// Get the entire config
+const allConfig = config.getAll();          // Full typed object
+
+// Check if a path exists
+if (config.has('features.maxCacheSize')) {
+  console.log('Cache size configured');
+}
+```
+
+## Understanding Source Priority
+
+Sources are processed in order, with later sources overriding earlier ones:
+
+```typescript
+sources: [
+  { type: 'file', path: './config/default.json' },  // 1. Base defaults
+  { type: 'file', path: './.env', format: 'dotenv' }, // 2. Local overrides
+  { type: 'env', prefix: 'APP_' },                   // 3. Runtime env vars
+],
+```
+
+In this example:
+1. `default.json` provides base values
+2. `.env` file can override specific values for local development
+3. Environment variables have the highest priority for runtime configuration
+
+## Error Handling
+
+If your configuration is invalid, zonfig throws a clear error at startup:
+
+```
+Configuration validation failed:
+
+✗ database.url
+  Expected: valid URL string
+  Received: "not-a-url"
+  Source: environment variable APP_DATABASE_URL
+
+✗ server.port
+  Expected: number
+  Received: "not-a-number"
+  Source: .env file
+```
+
+<Callout type="info">
+Configuration is validated when `defineConfig` is called, not when you access values. This ensures you catch all errors at startup.
+</Callout>
+
+## Next Steps
+
+- [Schema Definition](/docs/schema) - Learn more about defining schemas
+- [Configuration Sources](/docs/sources) - Deep dive into source types
+- [Environment Profiles](/docs/profiles) - Configure different environments

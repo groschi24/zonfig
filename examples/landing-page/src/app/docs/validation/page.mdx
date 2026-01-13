@@ -1,0 +1,172 @@
+# Validation
+
+zonfig validates your configuration at startup, catching errors before your application runs.
+
+## How Validation Works
+
+When you call `defineConfig()`, zonfig:
+
+1. Loads configuration from all sources
+2. Merges them in priority order
+3. Validates against your Zod schema
+4. Throws `ConfigValidationError` if validation fails
+
+```typescript
+try {
+  const config = await defineConfig({
+    schema: z.object({
+      port: z.number().min(1).max(65535),
+      database: z.object({
+        url: z.string().url(),
+      }),
+    }),
+    sources: [{ type: 'env', prefix: 'APP_' }],
+  });
+} catch (error) {
+  if (error instanceof ConfigValidationError) {
+    console.error(error.formatErrors());
+    process.exit(1);
+  }
+  throw error;
+}
+```
+
+## Error Messages
+
+Validation errors are clear and actionable:
+
+```
+Configuration validation failed:
+
+✗ database.url
+  Expected: valid URL string
+  Received: "not-a-url"
+  Source: environment variable APP_DATABASE_URL
+
+✗ port
+  Number must be less than or equal to 65535
+  Received: 70000
+  Source: file ./config.json
+```
+
+## ConfigValidationError
+
+The error object provides structured access to validation failures:
+
+```typescript
+import { ConfigValidationError } from 'zonfig';
+
+try {
+  const config = await defineConfig({ schema, sources });
+} catch (error) {
+  if (error instanceof ConfigValidationError) {
+    // Formatted string for logging
+    console.error(error.formatErrors());
+
+    // Structured errors for programmatic access
+    for (const err of error.errors) {
+      console.log({
+        path: err.path,      // ['database', 'url']
+        message: err.message, // 'Invalid url'
+        received: err.received,
+        source: err.source,   // 'environment variable APP_DATABASE_URL'
+      });
+    }
+  }
+}
+```
+
+## Validation Rules
+
+### Built-in Validators
+
+```typescript
+const schema = z.object({
+  // String validators
+  email: z.string().email(),
+  url: z.string().url(),
+  uuid: z.string().uuid(),
+  minLength: z.string().min(10),
+  maxLength: z.string().max(100),
+  pattern: z.string().regex(/^[A-Z]+$/),
+
+  // Number validators
+  port: z.number().min(1).max(65535),
+  positive: z.number().positive(),
+  integer: z.number().int(),
+
+  // Array validators
+  items: z.array(z.string()).min(1).max(10),
+
+  // Enum validators
+  level: z.enum(['low', 'medium', 'high']),
+});
+```
+
+### Custom Validators
+
+Use `.refine()` for custom validation logic:
+
+```typescript
+const schema = z.object({
+  password: z.string().refine(
+    (val) => val.length >= 8 && /[A-Z]/.test(val) && /[0-9]/.test(val),
+    { message: 'Password must be 8+ chars with uppercase and number' }
+  ),
+
+  startDate: z.string(),
+  endDate: z.string(),
+}).refine(
+  (data) => new Date(data.endDate) > new Date(data.startDate),
+  { message: 'endDate must be after startDate', path: ['endDate'] }
+);
+```
+
+## Handling Missing Values
+
+### Required vs Optional
+
+```typescript
+const schema = z.object({
+  required: z.string(),                    // Must be provided
+  optional: z.string().optional(),         // Can be undefined
+  withDefault: z.string().default('foo'),  // Falls back to 'foo'
+  nullable: z.string().nullable(),         // Can be null
+});
+```
+
+### Coercion
+
+Automatically convert strings to other types:
+
+```typescript
+const schema = z.object({
+  port: z.coerce.number(),      // "3000" -> 3000
+  debug: z.coerce.boolean(),    // "true" -> true
+  date: z.coerce.date(),        // "2024-01-01" -> Date
+});
+```
+
+## Source Tracking
+
+zonfig tracks where each value came from:
+
+```typescript
+const config = await defineConfig({ schema, sources });
+
+// Get the source of a specific value
+const source = config.getSource('database.url');
+// Returns: 'environment variable APP_DATABASE_URL'
+```
+
+## Best Practices
+
+1. **Validate early** - Call `defineConfig()` at application startup
+2. **Fail fast** - Don't catch validation errors silently
+3. **Use descriptive messages** - Add custom error messages to refine()
+4. **Log errors clearly** - Use `error.formatErrors()` for readable output
+
+## Next Steps
+
+- [Schema Definition](/docs/schema) - Define robust schemas
+- [Error Handling](/docs/api/define-config#error-handling) - Handle configuration errors

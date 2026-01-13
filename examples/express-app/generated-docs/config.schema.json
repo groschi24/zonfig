@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "server": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "default": "localhost"
+        },
+        "port": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 3000
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "poolSize": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10
+        },
+        "ssl": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "url"
+      ]
+    },
+    "redis": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "default": "localhost"
+        },
+        "port": {
+          "type": "number",
+          "default": 6379
+        },
+        "password": {
+          "type": "string"
+        }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "properties": {
+        "jwtSecret": {
+          "type": "string",
+          "minLength": 32
+        },
+        "jwtExpiresIn": {
+          "type": "string",
+          "default": "7d"
+        },
+        "bcryptRounds": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 15,
+          "default": 12
+        }
+      },
+      "required": [
+        "jwtSecret"
+      ]
+    },
+    "features": {
+      "type": "object",
+      "properties": {
+        "enableCache": {
+          "type": "boolean",
+          "default": true
+        },
+        "enableRateLimit": {
+          "type": "boolean",
+          "default": true
+        },
+        "maxRequestsPerMinute": {
+          "type": "number",
+          "default": 100
+        }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "default": "info"
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "json",
+            "pretty"
+          ],
+          "default": "json"
+        }
+      }
+    }
+  },
+  "required": [
+    "server",
+    "database",
+    "redis",
+    "auth",
+    "features",
+    "logging"
+  ]
+}

@@ -1,0 +1,147 @@
+# File Sources
+
+Load configuration from JSON and YAML files.
+
+## JSON Files
+
+```typescript
+const config = await defineConfig({
+  schema,
+  sources: [
+    { type: 'file', path: './config.json' },
+  ],
+});
+```
+
+**config.json:**
+```json
+{
+  "server": {
+    "host": "localhost",
+    "port": 3000
+  },
+  "database": {
+    "url": "postgres://localhost/myapp",
+    "pool": 10
+  }
+}
+```
+
+## YAML Files
+
+YAML files are automatically detected by extension:
+
+```typescript
+sources: [
+  { type: 'file', path: './config.yaml' },
+  { type: 'file', path: './config.yml' },
+]
+```
+
+**config.yaml:**
+```yaml
+server:
+  host: localhost
+  port: 3000
+
+database:
+  url: postgres://localhost/myapp
+  pool: 10
+```
+
+## Optional Files
+
+Mark files as optional when they may not exist:
+
+```typescript
+sources: [
+  { type: 'file', path: './config/default.json' },
+  { type: 'file', path: './config/local.json', optional: true },
+]
+```
+
+## Profile Interpolation
+
+Use `${PROFILE}` to load environment-specific files:
+
+```typescript
+const config = await defineConfig({
+  schema,
+  sources: [
+    { type: 'file', path: './config/default.json' },
+    { type: 'file', path: './config/${PROFILE}.json', optional: true },
+  ],
+  profile: process.env.NODE_ENV,
+});
+```
+
+File structure:
+```
+config/
+├── default.json      # Always loaded
+├── development.json  # Loaded when NODE_ENV=development
+├── staging.json      # Loaded when NODE_ENV=staging
+└── production.json   # Loaded when NODE_ENV=production
+```
+
+## Relative Paths
+
+Paths are resolved relative to the current working directory, or you can specify a custom `cwd`:
+
+```typescript
+const config = await defineConfig({
+  schema,
+  sources: [
+    { type: 'file', path: './config.json' },
+  ],
+  cwd: '/app/config',  // Optional: custom base directory
+});
+```
+
+## File Format Detection
+
+File format is detected by extension:
+
+| Extension | Format |
+|-----------|--------|
+| `.json` | JSON |
+| `.yaml` | YAML |
+| `.yml` | YAML |
+| `.env` | Dotenv (requires `format: 'dotenv'`) |
+
+## Explicit Format
+
+Override format detection:
+
+```typescript
+sources: [
+  { type: 'file', path: './config', format: 'json' },
+  { type: 'file', path: './.env.production', format: 'dotenv' },
+]
+```
+
+## Error Handling
+
+File errors are caught and reported clearly:
+
+```
+Configuration error:
+
+✗ File not found: ./config/missing.json
+  Source: file ./config/missing.json
+
+✗ Invalid JSON at line 5, column 10
+  Source: file ./config.json
+```
+
+## Best Practices
+
+1. **Use default.json** for shared configuration
+2. **Use environment files** for environment-specific overrides
+3. **Keep local.json gitignored** for developer-specific settings
+4. **Mark optional files** to prevent errors in CI/CD
+
+## Next Steps
+
+- [Environment Variables](/docs/sources/env) - Override with env vars
+- [Dotenv Files](/docs/sources/dotenv) - Load .env files
