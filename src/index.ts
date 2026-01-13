@@ -58,3 +58,5 @@ export { EnvLoader, FileLoader, BaseLoader } from './loaders/index.js';
 
 // Utilities (for advanced usage)
 export { deepMerge, getByPath, setByPath, deepFreeze } from './utils/deep-merge.js';
+export { interpolate, hasInterpolation, CircularReferenceError } from './utils/interpolate.js';
+export type { InterpolateOptions } from './utils/interpolate.js';

@@ -14,6 +14,7 @@ A universal, type-safe configuration library for Node.js applications. Define yo
 - **Documented** - Auto-generate markdown docs, JSON Schema, or .env.example from your schema
 - **Immutable** - Config is frozen at startup, preventing accidental mutations
 - **Watch mode** - Hot-reload config when files change with event-based notifications
+- **Variable interpolation** - Use `${VAR}` syntax to reference env vars and other config values
 - **Extensible** - Plugin system for secret stores (AWS Secrets Manager, Vault, etc.)
 - **CLI included** - Generate docs, validate configs, and scaffold projects from the command line
 
@@ -128,6 +129,90 @@ const config = await defineConfig({
   profile: process.env.NODE_ENV ?? 'development',
 });
 ```
+
+## Variable Interpolation
+
+Use `${VAR}` syntax to reference environment variables and other config values:
+
+```typescript
+// config.json
+{
+  "server": {
+    "host": "localhost",
+    "port": 5432
+  },
+  "database": {
+    "url": "postgres://${DB_USER}:${DB_PASSWORD}@${server.host}:${server.port}/mydb"
+  },
+  "apiUrl": "https://${API_HOST}/v1"
+}
+```
+
+```typescript
+// With environment variables:
+// DB_USER=admin
+// DB_PASSWORD=secret
+// API_HOST=api.example.com
+
+const config = await defineConfig({ schema, sources });
+
+config.get('database.url');
+// → "postgres://admin:secret@localhost:5432/mydb"
+
+config.get('apiUrl');
+// → "https://api.example.com/v1"
+```
+
+### Variable Resolution
+
+Variables are resolved in the following order:
+
+1. **Environment variables** - `${DB_PASSWORD}` looks for `process.env.DB_PASSWORD`
+2. **Config references** - `${server.host}` references another config value
+
+```yaml
+# config.yaml
+app:
+  name: myapp
+  version: "1.0.0"
+
+logging:
+  prefix: "${app.name}-${app.version}"  # → "myapp-1.0.0"
+
+database:
+  host: "${DB_HOST}"          # From environment
+  url: "postgres://${database.host}/db"  # Mixed reference
+```
+
+### Recursive Resolution
+
+Variables can reference other variables that also contain interpolation:
+
+```json
+{
+  "base": "${API_HOST}",
+  "versioned": "${base}/v2",
+  "endpoint": "${versioned}/users"
+}
+```
+
+With `API_HOST=api.example.com`, this resolves to:
+- `base` → `"api.example.com"`
+- `versioned` → `"api.example.com/v2"`
+- `endpoint` → `"api.example.com/v2/users"`
+
+### Cycle Detection
+
+Circular references are automatically detected and throw an error:
+
+```json
+{
+  "a": "${b}",
+  "b": "${a}"
+}
+```
+
+This throws `CircularReferenceError: Circular reference detected: a -> b -> a`
 
 ## Plugins
 

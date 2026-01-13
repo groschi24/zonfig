@@ -13,6 +13,7 @@ import type {
   WatchOptions,
 } from './types.js';
 import { deepMerge, getByPath, deepFreeze } from '../utils/deep-merge.js';
+import { interpolate } from '../utils/interpolate.js';
 import { ConfigValidationError } from '../errors/validation.js';
 import { EnvLoader } from '../loaders/env.js';
 import { FileLoader } from '../loaders/file.js';
@@ -377,11 +378,16 @@ async function loadConfig<TSchema extends z.ZodType>(
     ...loadedConfigs.map((c) => c.data)
   );
 
+  // Interpolate variables (${VAR} syntax)
+  const interpolated = interpolate(merged, {
+    env: context.env as Record<string, string | undefined>,
+  });
+
   // Track provenance
   const provenance = trackProvenance(loadedConfigs);
 
   // Validate with schema
-  const result = schema.safeParse(merged);
+  const result = schema.safeParse(interpolated);
 
   if (!result.success) {
     throw new ConfigValidationError(result.error, provenance);

@@ -27,6 +27,7 @@ export const docsNav: NavSection[] = [
       { title: 'Configuration Sources', href: '/docs/sources', icon: 'layers' },
       { title: 'Environment Profiles', href: '/docs/profiles', icon: 'git-branch' },
       { title: 'Validation', href: '/docs/validation', icon: 'check-circle' },
+      { title: 'Variable Interpolation', href: '/docs/interpolation', icon: 'dollar-sign' },
       { title: 'Watch Mode', href: '/docs/watch-mode', icon: 'refresh-cw' },
     ],
   },

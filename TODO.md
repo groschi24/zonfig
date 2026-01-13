@@ -7,7 +7,7 @@
   - File system watchers for JSON/YAML/.env files
   - Debounce rapid changes
 
-- [ ] **Variable interpolation** - Support `${VAR}` syntax in config values
+- [x] **Variable interpolation** - Support `${VAR}` syntax in config values
   - `database.url: "postgres://${DB_HOST}:${DB_PORT}/mydb"`
   - Reference env vars and other config values
   - Recursive resolution with cycle detection

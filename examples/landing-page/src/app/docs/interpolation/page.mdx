@@ -1,0 +1,215 @@
+# Variable Interpolation
+
+zonfig supports variable interpolation using the `${VAR}` syntax. This allows you to reference environment variables and other configuration values within your config files.
+
+## Basic Usage
+
+```json
+{
+  "server": {
+    "host": "localhost",
+    "port": 5432
+  },
+  "database": {
+    "url": "postgres://${DB_USER}:${DB_PASSWORD}@${server.host}:${server.port}/mydb"
+  }
+}
+```
+
+With environment variables `DB_USER=admin` and `DB_PASSWORD=secret`:
+
+```typescript
+const config = await defineConfig({ schema, sources });
+
+config.get('database.url');
+// → "postgres://admin:secret@localhost:5432/mydb"
+```
+
+## Variable Types
+
+### Environment Variables
+
+Reference environment variables using uppercase names or names with underscores:
+
+```yaml
+database:
+  host: "${DB_HOST}"
+  password: "${DB_PASSWORD}"
+
+api:
+  key: "${API_KEY}"
+```
+
+### Config References
+
+Reference other config values using dot notation:
+
+```yaml
+server:
+  host: localhost
+  port: 3000
+
+endpoints:
+  api: "http://${server.host}:${server.port}/api"
+  websocket: "ws://${server.host}:${server.port}/ws"
+```
+
+### Mixed References
+
+Combine environment variables and config references:
+
+```yaml
+app:
+  name: myapp
+
+logging:
+  prefix: "${app.name}-${NODE_ENV}"
+
+database:
+  url: "postgres://${DB_HOST}/${app.name}"
+```
+
+## Resolution Order
+
+Variables are resolved in this order:
+
+1. **Environment variables first** - If the variable name is uppercase or contains underscores
+2. **Config references second** - If the variable contains a dot (`.`)
+3. **Fallback** - Try environment, then config
+
+```yaml
+# ${DB_HOST} → tries process.env.DB_HOST
+# ${server.port} → tries config value at server.port
+# ${host} → tries env first, then config
+```
+
+## Recursive Resolution
+
+Variables can reference other variables that also contain interpolation:
+
+```json
+{
+  "base": "${API_HOST}",
+  "versioned": "${base}/v2",
+  "endpoint": "${versioned}/users"
+}
+```
+
+With `API_HOST=api.example.com`:
+
+| Variable | Resolved Value |
+|----------|----------------|
+| `base` | `api.example.com` |
+| `versioned` | `api.example.com/v2` |
+| `endpoint` | `api.example.com/v2/users` |
+
+## Cycle Detection
+
+Circular references are automatically detected:
+
+```json
+{
+  "a": "${b}",
+  "b": "${c}",
+  "c": "${a}"
+}
+```
+
+This throws an error:
+
+```
+CircularReferenceError: Circular reference detected: a -> b -> c -> a
+```
+
+## Arrays
+
+Interpolation works in arrays too:
+
+```yaml
+servers:
+  - host: "${PRIMARY_HOST}"
+    port: 3000
+  - host: "${SECONDARY_HOST}"
+    port: 3001
+
+urls:
+  - "https://${API_HOST}/v1"
+  - "https://${API_HOST}/v2"
+```
+
+## Undefined Variables
+
+If a variable cannot be resolved, it becomes an empty string:
+
+```yaml
+# If UNDEFINED_VAR is not set
+value: "prefix-${UNDEFINED_VAR}-suffix"
+# → "prefix--suffix"
+```
+
+## Practical Examples
+
+### Database Connection String
+
+```yaml
+database:
+  host: "${DB_HOST}"
+  port: "${DB_PORT}"
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
+  name: "${DB_NAME}"
+  url: "postgres://${database.user}:${database.password}@${database.host}:${database.port}/${database.name}"
+```
+
+### Multi-Environment URLs
+
+```yaml
+environment: "${NODE_ENV}"
+
+api:
+  baseUrl: "${API_BASE_URL}"
+  version: v2
+  fullUrl: "${api.baseUrl}/${api.version}"
+
+cdn:
+  baseUrl: "${CDN_BASE_URL}"
+  assets: "${cdn.baseUrl}/assets"
+  images: "${cdn.baseUrl}/images"
+```
+
+### Feature Flags with Environment Override
+
+```yaml
+features:
+  darkMode: "${FEATURE_DARK_MODE}"
+  betaAccess: "${FEATURE_BETA}"
+
+app:
+  name: myapp
+  analyticsId: "${app.name}-${NODE_ENV}"
+```
+
+## Using the Interpolate Function Directly
+
+For advanced use cases, you can use the interpolate function directly:
+
+```typescript
+import { interpolate } from '@zonfig/zonfig';
+
+const config = {
+  host: 'localhost',
+  url: 'http://${host}:${PORT}/api'
+};
+
+const resolved = interpolate(config, {
+  env: { PORT: '3000' }
+});
+
+// resolved.url → "http://localhost:3000/api"
+```
+
+## Next Steps
+
+- [Configuration Sources](/docs/sources) - Where values come from
+- [Environment Variables](/docs/sources/env) - Loading from env vars
+- [Validation](/docs/validation) - Validating interpolated values
