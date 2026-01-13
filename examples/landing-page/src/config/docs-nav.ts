@@ -31,6 +31,7 @@ export const docsNav: NavSection[] = [
       { title: 'Watch Mode', href: '/docs/watch-mode', icon: 'refresh-cw' },
       { title: 'Secrets Masking', href: '/docs/secrets-masking', icon: 'eye-off' },
       { title: 'Encryption', href: '/docs/encryption', icon: 'lock' },
+      { title: 'Schema Migrations', href: '/docs/schema-migrations', icon: 'git-merge' },
     ],
   },
   {
@@ -60,6 +61,7 @@ export const docsNav: NavSection[] = [
       { title: 'analyze', href: '/docs/cli/analyze', icon: 'search' },
       { title: 'encrypt', href: '/docs/cli/encrypt', icon: 'lock' },
       { title: 'decrypt', href: '/docs/cli/decrypt', icon: 'unlock' },
+      { title: 'migrate', href: '/docs/cli/migrate', icon: 'git-merge' },
     ],
   },
   {

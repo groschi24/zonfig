@@ -1,0 +1,213 @@
+# zonfig migrate
+
+Compare two schema versions and generate a migration report. Detects breaking changes, validates existing configs, and can auto-migrate configuration files.
+
+## Usage
+
+```bash
+npx zonfig migrate [options]
+```
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `--old <file>` | Path to old schema file (required) |
+| `--new <file>` | Path to new schema file (required) |
+| `-c, --config <file>` | Config file to validate/migrate (optional) |
+| `-o, --output <file>` | Output migrated config to file (optional) |
+| `--auto` | Automatically apply safe migrations |
+| `--report <file>` | Write migration report to file (default: stdout) |
+| `-h, --help` | Show help message |
+
+## Examples
+
+### Compare Two Schema Versions
+
+```bash
+npx zonfig migrate --old ./schema-v1.ts --new ./schema-v2.ts
+```
+
+Output:
+```
+Schema Migration Analysis
+=========================
+
+  Old schema: ./schema-v1.ts
+  New schema: ./schema-v2.ts
+
+Loading schemas...
+  Schemas loaded successfully
+
+Comparing schemas...
+
+# Schema Migration Report
+
+## Summary
+
+Found 2 breaking changes, 4 info changes.
+
+⚠️  **This migration contains breaking changes!**
+
+## Breaking Changes
+
+- ❌ **feature.oldOption**: Field "feature.oldOption" was removed
+  - Old: `"ZodString"`
+- ❌ **monitoring**: Required field "monitoring" was added without a default value
+  - New: `"ZodObject"`
+
+## Other Changes
+
+- ℹ️  **server.port**: Field "server.port" default value changed
+  - Old: `3000`
+  - New: `8080`
+- ℹ️  **server.ssl**: Field "server.ssl" was added with default value
+  - New: `"ZodBoolean"`
+
+## Migration Steps
+
+To migrate your configuration:
+
+1. Remove the `feature.oldOption` field from your config files
+2. Add `monitoring` field to your config files
+
+Summary:
+  Breaking changes: 2
+  Warnings: 0
+  Info: 4
+
+  ⚠️  Breaking changes detected! Manual migration may be required.
+```
+
+### Validate Config Against Changes
+
+Check if your existing config file is compatible with the schema changes:
+
+```bash
+npx zonfig migrate --old ./v1.ts --new ./v2.ts -c ./config.json
+```
+
+Output:
+```
+...
+Validating config against changes...
+  ✗ Config has compatibility issues:
+    - Deprecated field still present: feature.oldOption
+    - Missing required field: monitoring
+```
+
+### Auto-Migrate Config
+
+Automatically apply safe migrations and save to a new file:
+
+```bash
+npx zonfig migrate --old ./v1.ts --new ./v2.ts -c ./config.json --auto -o ./config-migrated.json
+```
+
+Output:
+```
+...
+Applying automatic migrations...
+  Applied migrations:
+    ✓ Removed deprecated field: feature.oldOption
+    ✓ New optional field available: server.ssl
+    ✓ New optional field available: database.timeout
+  Manual migrations required:
+    ⚠ Add required field: monitoring
+
+  Migrated config written to: ./config-migrated.json
+```
+
+### Save Report to File
+
+Generate a markdown report for documentation or code review:
+
+```bash
+npx zonfig migrate --old ./v1.ts --new ./v2.ts --report MIGRATION.md
+```
+
+## What It Detects
+
+### Breaking Changes
+
+Changes that will cause validation errors for existing configs:
+
+| Change | Severity | Description |
+|--------|----------|-------------|
+| Field removed | Breaking | A field was removed from the schema |
+| Type changed | Breaking | Field type changed (e.g., string → number) |
+| Required field added | Breaking | New required field without default |
+| Made required | Breaking | Optional field made required without default |
+
+### Warnings
+
+Changes that may cause issues:
+
+| Change | Severity | Description |
+|--------|----------|-------------|
+| Default removed | Warning | Default value was removed |
+| Constraints tightened | Warning | Validation constraints made more restrictive |
+
+### Info
+
+Non-breaking informational changes:
+
+| Change | Severity | Description |
+|--------|----------|-------------|
+| Field added (optional) | Info | New optional field added |
+| Field added (with default) | Info | New field with default value |
+| Default changed | Info | Default value was modified |
+| Made optional | Info | Required field made optional |
+| Description changed | Info | Field description was updated |
+
+## Auto-Migration Behavior
+
+When using `--auto`, the following migrations are applied automatically:
+
+| Change | Auto-Applied | Notes |
+|--------|--------------|-------|
+| Deprecated field removal | ✅ | Removes fields no longer in schema |
+| New optional fields | ✅ | Noted, no action needed |
+| New fields with defaults | ✅ | Noted, no action needed |
+| Required field without default | ❌ | Requires manual migration |
+| Type changes | ❌ | Requires manual migration |
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success (no breaking changes, or `--auto` applied) |
+| 1 | Breaking changes detected |
+
+## Schema File Requirements
+
+Schema files must export `schema`, `configSchema`, or a default export:
+
+```typescript
+// schema-v1.ts
+import { z } from 'zod';
+
+export const schema = z.object({
+  server: z.object({
+    host: z.string().default('localhost'),
+    port: z.number().default(3000),
+  }),
+});
+```
+
+## CI/CD Integration
+
+Use in your CI pipeline to catch breaking changes:
+
+```yaml
+# GitHub Actions example
+- name: Check for breaking schema changes
+  run: npx zonfig migrate --old ./schema-v1.ts --new ./schema-v2.ts
+```
+
+The command exits with code 1 if breaking changes are detected, failing the build.
+
+## Related
+
+- [Schema Migrations](/docs/schema-migrations) - Full documentation on the schema migrations feature
+- [validate](/docs/cli/validate) - Validate a config file against a schema

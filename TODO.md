@@ -36,7 +36,7 @@
   - Auto-decrypt support in config loading
   - Support for AWS KMS, GCP KMS, age, PGP (future: via plugins)
 
-- [ ] **Schema migrations** - Help when schema changes
+- [x] **Schema migrations** - Help when schema changes
   - Detect breaking changes between versions
   - Generate migration scripts
   - `zonfig migrate` CLI command
@@ -101,3 +101,4 @@
 - [x] Config references (part of variable interpolation)
 - [x] Secrets masking with `config.getMasked()` and utility functions
 - [x] Encrypted configs with AES-256-GCM, CLI commands, and auto-decrypt in config loading
+- [x] Schema migrations with `zonfig migrate` CLI, breaking change detection, and auto-migration

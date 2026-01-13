@@ -92,3 +92,19 @@ export {
   ENCRYPTED_SUFFIX,
 } from './utils/encrypt.js';
 export type { EncryptOptions, DecryptOptions } from './utils/encrypt.js';
+
+// Schema migrations
+export {
+  diffSchemas,
+  extractSchemaInfo,
+  generateMigrationReport,
+  validateConfigAgainstChanges,
+  applyAutoMigrations,
+} from './utils/schema-diff.js';
+export type {
+  SchemaChange,
+  SchemaDiffResult,
+  SchemaField,
+  ChangeType,
+  ChangeSeverity,
+} from './utils/schema-diff.js';

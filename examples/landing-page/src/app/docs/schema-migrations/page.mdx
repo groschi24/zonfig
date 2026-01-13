@@ -1,0 +1,291 @@
+# Schema Migrations
+
+zonfig can detect breaking changes between schema versions and help you migrate configuration files. This is useful when evolving your configuration schema over time.
+
+## Why Schema Migrations?
+
+As your application evolves, your configuration schema will change. These changes can be:
+
+- **Breaking** - Removing fields, changing types, adding required fields without defaults
+- **Non-breaking** - Adding optional fields, adding defaults, relaxing constraints
+
+zonfig helps you:
+1. Detect what changed between schema versions
+2. Identify breaking changes before they cause runtime errors
+3. Automatically migrate configs where possible
+4. Generate migration reports for manual review
+
+## Comparing Schemas
+
+Use `diffSchemas()` to compare two schema versions:
+
+```typescript
+import { diffSchemas, generateMigrationReport } from '@zonfig/zonfig';
+import { z } from 'zod';
+
+const oldSchema = z.object({
+  server: z.object({
+    host: z.string().default('localhost'),
+    port: z.number().default(3000),
+  }),
+  deprecated: z.string().optional(),
+});
+
+const newSchema = z.object({
+  server: z.object({
+    host: z.string().default('localhost'),
+    port: z.number().default(8080),  // Default changed
+    ssl: z.boolean().default(false), // New field
+  }),
+  // deprecated field removed
+});
+
+const diff = diffSchemas(oldSchema, newSchema);
+
+console.log('Breaking changes:', diff.breaking.length);
+console.log('Has breaking changes:', diff.hasBreakingChanges);
+console.log('Summary:', diff.summary);
+```
+
+## Change Types
+
+The diff result categorizes changes by severity:
+
+### Breaking Changes (`diff.breaking`)
+
+These changes will cause validation errors for existing configs:
+
+| Change Type | Description |
+|------------|-------------|
+| `removed` | Field was removed from schema |
+| `type_changed` | Field type changed (e.g., string → number) |
+| `added` | Required field added without default value |
+| `made_required` | Optional field made required without default |
+
+### Warnings (`diff.warnings`)
+
+These changes may cause issues:
+
+| Change Type | Description |
+|------------|-------------|
+| `default_removed` | Default value was removed |
+| `constraint_changed` | Constraints made more restrictive |
+
+### Info (`diff.info`)
+
+Non-breaking informational changes:
+
+| Change Type | Description |
+|------------|-------------|
+| `added` | New optional field or field with default |
+| `default_added` | Default value was added |
+| `default_changed` | Default value changed |
+| `made_optional` | Required field made optional |
+| `description_changed` | Description was updated |
+
+## Generating Migration Reports
+
+Generate a markdown report for documentation or code review:
+
+```typescript
+import { diffSchemas, generateMigrationReport } from '@zonfig/zonfig';
+
+const diff = diffSchemas(oldSchema, newSchema);
+const report = generateMigrationReport(diff);
+
+console.log(report);
+```
+
+Output:
+```markdown
+# Schema Migration Report
+
+## Summary
+
+Found 1 breaking change, 3 info changes.
+
+⚠️ **This migration contains breaking changes!**
+
+## Breaking Changes
+
+- ❌ **deprecated**: Field "deprecated" was removed
+  - Old: `"ZodString"`
+
+## Other Changes
+
+- ℹ️ **server.port**: Field "server.port" default value changed
+  - Old: `3000`
+  - New: `8080`
+- ℹ️ **server.ssl**: Field "server.ssl" was added with default value
+  - New: `"ZodBoolean"`
+
+## Migration Steps
+
+To migrate your configuration:
+
+1. Remove the `deprecated` field from your config files
+```
+
+## Validating Configs Against Changes
+
+Check if an existing config is compatible with schema changes:
+
+```typescript
+import { diffSchemas, validateConfigAgainstChanges } from '@zonfig/zonfig';
+
+const diff = diffSchemas(oldSchema, newSchema);
+
+const config = {
+  server: { host: 'localhost', port: 3000 },
+  deprecated: 'old value', // This field was removed
+};
+
+const result = validateConfigAgainstChanges(config, diff);
+
+if (!result.valid) {
+  console.log('Config has issues:');
+  result.errors.forEach((err) => console.log('  -', err));
+}
+// Output:
+// Config has issues:
+//   - Deprecated field still present: deprecated
+```
+
+## Auto-Migrating Configs
+
+Automatically apply safe migrations to config files:
+
+```typescript
+import { diffSchemas, applyAutoMigrations } from '@zonfig/zonfig';
+
+const diff = diffSchemas(oldSchema, newSchema);
+
+const config = {
+  server: { host: 'localhost', port: 3000 },
+  deprecated: 'old value',
+};
+
+const migration = applyAutoMigrations(config, diff, newSchema);
+
+console.log('Migrated config:', migration.config);
+// { server: { host: 'localhost', port: 3000 } }
+
+console.log('Applied migrations:', migration.applied);
+// ['Removed deprecated field: deprecated']
+
+console.log('Manual migrations required:', migration.manual);
+// Any changes that require manual intervention
+```
+
+### What Gets Auto-Migrated
+
+| Change | Auto-Migration |
+|--------|----------------|
+| Field removed | ✅ Removed from config |
+| New optional field | ✅ Noted as available |
+| New field with default | ✅ Noted as available |
+| Required field without default | ❌ Manual migration required |
+| Type changed | ❌ Manual migration required |
+
+## Extracting Schema Info
+
+You can also extract structural information from a schema for custom tooling:
+
+```typescript
+import { extractSchemaInfo } from '@zonfig/zonfig';
+
+const schema = z.object({
+  server: z.object({
+    port: z.number().default(3000),
+  }),
+});
+
+const info = extractSchemaInfo(schema);
+console.log(info.children?.server.children?.port);
+// {
+//   type: 'ZodNumber',
+//   isOptional: false,
+//   hasDefault: true,
+//   defaultValue: 3000
+// }
+```
+
+### SchemaField Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `type` | string | Zod type name (e.g., 'ZodString', 'ZodNumber') |
+| `isOptional` | boolean | Whether the field is optional |
+| `isNullable` | boolean | Whether the field accepts null |
+| `hasDefault` | boolean | Whether the field has a default value |
+| `defaultValue` | unknown | The default value (if any) |
+| `description` | string | Field description (if set) |
+| `children` | object | Child fields (for objects) |
+| `itemType` | SchemaField | Array item type (for arrays) |
+| `constraints` | object | Validation constraints |
+
+## CLI Usage
+
+The `zonfig migrate` command provides all this functionality from the command line:
+
+```bash
+# Compare two schema versions
+npx zonfig migrate --old ./schema-v1.ts --new ./schema-v2.ts
+
+# Validate config against changes
+npx zonfig migrate --old ./v1.ts --new ./v2.ts -c ./config.json
+
+# Auto-migrate and save
+npx zonfig migrate --old ./v1.ts --new ./v2.ts -c ./config.json --auto -o ./migrated.json
+
+# Save report to file
+npx zonfig migrate --old ./v1.ts --new ./v2.ts --report migration-report.md
+```
+
+See [CLI migrate](/docs/cli/migrate) for full documentation.
+
+## Best Practices
+
+### 1. Version Your Schemas
+
+Keep schema versions in separate files or exports:
+
+```typescript
+// schemas/v1.ts
+export const schemaV1 = z.object({ ... });
+
+// schemas/v2.ts
+export const schemaV2 = z.object({ ... });
+```
+
+### 2. Run Migration Checks in CI
+
+Add migration checks to your CI pipeline:
+
+```bash
+# Fail build if breaking changes exist
+npx zonfig migrate --old ./schema-v1.ts --new ./schema-v2.ts
+```
+
+### 3. Generate Reports for PRs
+
+Include migration reports in pull requests:
+
+```bash
+npx zonfig migrate --old ./v1.ts --new ./v2.ts --report MIGRATION.md
+```
+
+### 4. Prefer Non-Breaking Changes
+
+When possible, make changes non-breaking:
+
+```typescript
+// Breaking: Add required field
+email: z.string().email()
+
+// Non-breaking: Add with default
+email: z.string().email().default('')
+
+// Non-breaking: Add as optional
+email: z.string().email().optional()
+```

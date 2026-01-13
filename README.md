@@ -18,6 +18,7 @@ A universal, type-safe configuration library for Node.js applications. Define yo
 - **Secrets masking** - Auto-redact sensitive values for safe logging and debugging
 - **Encryption** - Encrypt sensitive values at rest with AES-256-GCM encryption
 - **Extensible** - Plugin system for secret stores (AWS Secrets Manager, Vault, etc.)
+- **Schema migrations** - Detect breaking changes between schema versions and auto-migrate configs
 - **CLI included** - Generate docs, validate configs, and scaffold projects from the command line
 
 ## Installation
@@ -526,6 +527,75 @@ Validation failed!
     Invalid url
     Expected: valid URL
     Received: "not-a-url"
+```
+
+### `zonfig migrate`
+
+Compare two schema versions and generate a migration report. Detects breaking changes and can auto-migrate config files.
+
+```bash
+npx zonfig migrate [options]
+
+Options:
+  --old <file>          Path to old schema file (required)
+  --new <file>          Path to new schema file (required)
+  -c, --config <file>   Config file to validate/migrate (optional)
+  -o, --output <file>   Output migrated config to file (optional)
+  --auto                Automatically apply safe migrations
+  --report <file>       Write migration report to file (default: stdout)
+```
+
+**What it detects:**
+- **Breaking changes** - removed fields, type changes, required fields added without defaults
+- **Warnings** - optional fields made required, defaults removed
+- **Info** - new optional fields, default value changes, description changes
+
+**Examples:**
+
+```bash
+# Compare two schema versions
+npx zonfig migrate --old ./schema-v1.ts --new ./schema-v2.ts
+
+# Validate existing config against schema changes
+npx zonfig migrate --old ./v1.ts --new ./v2.ts -c ./config.json
+
+# Auto-migrate config (removes deprecated fields, applies safe migrations)
+npx zonfig migrate --old ./v1.ts --new ./v2.ts -c ./config.json --auto -o ./config-migrated.json
+
+# Save report to file
+npx zonfig migrate --old ./v1.ts --new ./v2.ts --report migration-report.md
+```
+
+**Example output:**
+
+```
+Schema Migration Analysis
+=========================
+
+Loading schemas...
+  Schemas loaded successfully
+
+Comparing schemas...
+
+# Schema Migration Report
+
+## Summary
+Found 2 breaking changes, 6 info changes.
+
+## Breaking Changes
+- ❌ **feature.oldOption**: Field "feature.oldOption" was removed
+- ❌ **monitoring**: Required field "monitoring" was added without a default value
+
+## Other Changes
+- ℹ️  **server.port**: Field "server.port" default value changed (3000 → 8080)
+- ℹ️  **server.ssl**: Field "server.ssl" was added with default value
+
+Summary:
+  Breaking changes: 2
+  Warnings: 0
+  Info: 6
+
+  ⚠️  Breaking changes detected! Manual migration may be required.
 ```
 
 ## Error Handling
@@ -1059,6 +1129,133 @@ const encrypted = encryptObject(config, {
 - The authentication tag prevents tampering with encrypted values
 - Store encryption keys securely (environment variables, secret managers)
 - Never commit plaintext encryption keys to version control
+
+## Schema Migrations
+
+zonfig can detect breaking changes between schema versions and help you migrate configuration files. This is useful when evolving your configuration schema over time.
+
+### Comparing Schemas
+
+```typescript
+import { diffSchemas, generateMigrationReport } from '@zonfig/zonfig';
+import { z } from 'zod';
+
+const oldSchema = z.object({
+  server: z.object({
+    host: z.string().default('localhost'),
+    port: z.number().default(3000),
+  }),
+  deprecated: z.string().optional(),
+});
+
+const newSchema = z.object({
+  server: z.object({
+    host: z.string().default('localhost'),
+    port: z.number().default(8080),  // Default changed
+    ssl: z.boolean().default(false), // New field
+  }),
+  // deprecated field removed
+});
+
+const diff = diffSchemas(oldSchema, newSchema);
+
+console.log('Breaking changes:', diff.breaking.length);
+console.log('Has breaking changes:', diff.hasBreakingChanges);
+console.log('Summary:', diff.summary);
+
+// Generate a markdown report
+const report = generateMigrationReport(diff);
+console.log(report);
+```
+
+### Change Types
+
+The diff result categorizes changes by severity:
+
+- **Breaking changes** (`diff.breaking`):
+  - Field removed
+  - Type changed
+  - Required field added without default
+
+- **Warnings** (`diff.warnings`):
+  - Default value removed
+  - Constraints made more restrictive
+
+- **Info** (`diff.info`):
+  - New optional field added
+  - New field with default added
+  - Default value changed
+  - Field made optional
+  - Description changed
+
+### Validating Configs Against Changes
+
+```typescript
+import { diffSchemas, validateConfigAgainstChanges } from '@zonfig/zonfig';
+
+const diff = diffSchemas(oldSchema, newSchema);
+
+const config = {
+  server: { host: 'localhost', port: 3000 },
+  deprecated: 'old value', // This field was removed in new schema
+};
+
+const result = validateConfigAgainstChanges(config, diff);
+
+if (!result.valid) {
+  console.log('Config has issues:');
+  result.errors.forEach((err) => console.log('  -', err));
+  // Output: "Deprecated field still present: deprecated"
+}
+```
+
+### Auto-Migrating Configs
+
+```typescript
+import { diffSchemas, applyAutoMigrations } from '@zonfig/zonfig';
+
+const diff = diffSchemas(oldSchema, newSchema);
+
+const config = {
+  server: { host: 'localhost', port: 3000 },
+  deprecated: 'old value',
+};
+
+const migration = applyAutoMigrations(config, diff, newSchema);
+
+console.log('Migrated config:', migration.config);
+// { server: { host: 'localhost', port: 3000 } }
+// Note: 'deprecated' was automatically removed
+
+console.log('Applied:', migration.applied);
+// ['Removed deprecated field: deprecated']
+
+console.log('Manual:', migration.manual);
+// Any changes that require manual intervention
+```
+
+### Extracting Schema Info
+
+You can also extract structural information from a schema:
+
+```typescript
+import { extractSchemaInfo } from '@zonfig/zonfig';
+
+const schema = z.object({
+  server: z.object({
+    port: z.number().default(3000),
+  }),
+});
+
+const info = extractSchemaInfo(schema);
+console.log(info.children?.server.children?.port);
+// {
+//   type: 'ZodNumber',
+//   isOptional: false,
+//   hasDefault: true,
+//   defaultValue: 3000
+// }
+```
 
 ## Performance
 

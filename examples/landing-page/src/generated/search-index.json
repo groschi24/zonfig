@@ -144,6 +144,24 @@
     ]
   },
   {
+    "href": "/docs/cli/migrate",
+    "title": "migrate",
+    "section": "Docs",
+    "content": "zonfig migrate Compare two schema versions and generate a migration report. Detects breaking changes, validates existing configs, and can auto-migrate configuration files. Usage Options | Option | Description | |--------|-------------| | --old | Path to old schema file (required) | | --new | Path to new schema file (required) | | -c, --config | Config file to validate/migrate (optional) | | -o, --output | Output migrated config to file (optional) | | --auto | Automatically apply safe migrations | | --report | Write migration report to file (default: stdout) | | -h, --help | Show help message | Examples Compare Two Schema Versions Output: Validate Config Against Changes Check if your existing config file is compatible with the schema changes: Output: Auto-Migrate Config Automatically apply safe migrations and save to a new file: Output: Save Report to File Generate a markdown report for documentation or code review: What It Detects Breaking Changes Changes that will cause validation errors for existing configs: | Change | Severity | Description | |--------|----------|-------------| | Field removed | Breaking | A field was removed from the schema | | Type changed | Breaking | Field type changed (e.g., string → number) | | Required field added | Breaking | New required field without default | | Made required | Breaking | Optional field made required without default | Warnings Changes that may cause issues: | Change | Severity | Description | |--------|----------|-------------| | Default removed | Warning | Default value was removed | | Constraints tightened | Warning | Validation constraints made more restrictive | Info Non-breaking informational changes: | Change | Severity | Description | |--------|----------|-------------| | Field added (optional) | Info | New optional field added | | Field added (with default) | Info | New field with default value | | Default changed | Info | Default value was modified | | Made optional | Info | Required field made optional | | Des",
+    "headings": [
+      "zonfig migrate",
+      "Usage",
+      "Options",
+      "Examples",
+      "Compare Two Schema Versions",
+      "Schema Migration Report",
+      "Summary",
+      "Breaking Changes",
+      "Other Changes",
+      "Migration Steps"
+    ]
+  },
+  {
     "href": "/docs/cli",
     "title": "CLI Overview",
     "section": "CLI",
@@ -337,6 +355,24 @@
       "Arrays",
       "Enums",
       "Type Inference"
+    ]
+  },
+  {
+    "href": "/docs/schema-migrations",
+    "title": "schema-migrations",
+    "section": "Docs",
+    "content": "Schema Migrations zonfig can detect breaking changes between schema versions and help you migrate configuration files. This is useful when evolving your configuration schema over time. Why Schema Migrations? As your application evolves, your configuration schema will change. These changes can be: - Breaking - Removing fields, changing types, adding required fields without defaults - Non-breaking - Adding optional fields, adding defaults, relaxing constraints zonfig helps you: 1. Detect what changed between schema versions 2. Identify breaking changes before they cause runtime errors 3. Automatically migrate configs where possible 4. Generate migration reports for manual review Comparing Schemas Use diffSchemas() to compare two schema versions: Change Types The diff result categorizes changes by severity: Breaking Changes ( diff.breaking ) These changes will cause validation errors for existing configs: | Change Type | Description | |------------|-------------| | removed | Field was removed from schema | | type changed | Field type changed (e.g., string → number) | | added | Required field added without default value | | made required | Optional field made required without default | Warnings ( diff.warnings ) These changes may cause issues: | Change Type | Description | |------------|-------------| | default removed | Default value was removed | | constraint changed | Constraints made more restrictive | Info ( diff.info ) Non-breaking informational changes: | Change Type | Description | |------------|-------------| | added | New optional field or field with default | | default added | Default value was added | | default changed | Default value changed | | made optional | Required field made optional | | description changed | Description was updated | Generating Migration Reports Generate a markdown report for documentation or code review: Output: Validating Configs Against Changes Check if an existing config is compatible with schema changes: Auto-Migrating Configs A",
+    "headings": [
+      "Schema Migrations",
+      "Why Schema Migrations?",
+      "Comparing Schemas",
+      "Change Types",
+      "Breaking Changes (`diff.breaking`)",
+      "Warnings (`diff.warnings`)",
+      "Info (`diff.info`)",
+      "Generating Migration Reports",
+      "Schema Migration Report",
+      "Summary"
     ]
   },
   {

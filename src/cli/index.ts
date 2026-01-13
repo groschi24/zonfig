@@ -5,6 +5,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { generateDocs } from '../documentation/index.js';
 import { analyzeProject } from './analyze.js';
 import { encryptObject, decryptObject, countEncryptedValues, hasEncryptedValues } from '../utils/encrypt.js';
+import { diffSchemas, generateMigrationReport, validateConfigAgainstChanges, applyAutoMigrations } from '../utils/schema-diff.js';
 import { z } from 'zod';
 
 const VERSION = '0.1.3';
@@ -20,6 +21,7 @@ Commands:
   docs      Generate documentation from a Zod schema file
   encrypt   Encrypt sensitive values in a configuration file
   decrypt   Decrypt encrypted values in a configuration file
+  migrate   Compare schemas and generate migration report
   init      Initialize a new zonfig configuration setup
   validate  Validate a configuration file against a schema
   help      Show this help message
@@ -172,6 +174,40 @@ Examples:
   zonfig decrypt -c ./config.encrypted.json -o ./config.decrypted.json
 `;
 
+const MIGRATE_HELP = `
+zonfig migrate - Compare schemas and generate migration report
+
+Usage:
+  zonfig migrate [options]
+
+Options:
+  --old <file>          Path to old schema file (TypeScript/JavaScript)
+  --new <file>          Path to new schema file (TypeScript/JavaScript)
+  -c, --config <file>   Config file to validate/migrate (optional)
+  -o, --output <file>   Output migrated config to file (optional)
+  --auto                Automatically apply safe migrations (add defaults)
+  --report <file>       Write migration report to file (default: stdout)
+  -h, --help            Show this help message
+
+What it detects:
+  - Breaking changes (removed fields, type changes, made required)
+  - Warnings (made optional without default)
+  - Info (new fields, default changes, description changes)
+
+Examples:
+  # Compare two schema versions
+  zonfig migrate --old ./schema-v1.ts --new ./schema-v2.ts
+
+  # Validate existing config against schema changes
+  zonfig migrate --old ./v1.ts --new ./v2.ts -c ./config.json
+
+  # Auto-migrate config with new defaults
+  zonfig migrate --old ./v1.ts --new ./v2.ts -c ./config.json --auto -o ./config-migrated.json
+
+  # Save report to file
+  zonfig migrate --old ./v1.ts --new ./v2.ts --report migration-report.md
+`;
+
 interface ParsedArgs {
   values: {
     schema?: string;
@@ -189,6 +225,11 @@ interface ParsedArgs {
     verbose?: boolean;
     all?: boolean;
     package?: string;
+    // Migrate command options
+    old?: string;
+    new?: string;
+    auto?: boolean;
+    report?: string;
   };
   positionals: string[];
 }
@@ -213,6 +254,11 @@ function parseCliArgs(): ParsedArgs {
         verbose: { type: 'boolean', short: 'V' },
         all: { type: 'boolean' },
         package: { type: 'string' },
+        // Migrate command options
+        old: { type: 'string' },
+        new: { type: 'string' },
+        auto: { type: 'boolean' },
+        report: { type: 'string' },
       },
     });
   } catch {
@@ -706,6 +752,122 @@ async function commandDecrypt(args: ParsedArgs): Promise<void> {
   }
 }
 
+async function commandMigrate(args: ParsedArgs): Promise<void> {
+  if (args.values.help) {
+    console.log(MIGRATE_HELP);
+    return;
+  }
+
+  const oldSchemaPath = args.values.old;
+  const newSchemaPath = args.values.new;
+
+  if (!oldSchemaPath || !newSchemaPath) {
+    console.error('Error: Both --old and --new schema paths are required\n');
+    console.log(MIGRATE_HELP);
+    process.exit(1);
+  }
+
+  const configPath = args.values.config;
+  const outputPath = args.values.output;
+  const autoMigrate = args.values.auto || false;
+  const reportPath = args.values.report;
+
+  console.log('Schema Migration Analysis');
+  console.log('=========================\n');
+  console.log(`  Old schema: ${oldSchemaPath}`);
+  console.log(`  New schema: ${newSchemaPath}`);
+  if (configPath) {
+    console.log(`  Config: ${configPath}`);
+  }
+  console.log('');
+
+  try {
+    // Load both schemas
+    console.log('Loading schemas...');
+    const oldSchema = await loadSchemaFromFile(oldSchemaPath);
+    const newSchema = await loadSchemaFromFile(newSchemaPath);
+    console.log('  Schemas loaded successfully\n');
+
+    // Compare schemas
+    console.log('Comparing schemas...');
+    const diff = diffSchemas(oldSchema, newSchema);
+
+    // Generate report
+    const report = generateMigrationReport(diff);
+
+    // Output report
+    if (reportPath) {
+      await writeFile(resolve(process.cwd(), reportPath), report);
+      console.log(`  Report written to: ${reportPath}\n`);
+    } else {
+      console.log('\n' + report);
+    }
+
+    // Summary
+    console.log('Summary:');
+    console.log(`  Breaking changes: ${diff.breaking.length}`);
+    console.log(`  Warnings: ${diff.warnings.length}`);
+    console.log(`  Info: ${diff.info.length}`);
+
+    if (diff.hasBreakingChanges) {
+      console.log('\n  ⚠️  Breaking changes detected! Manual migration may be required.');
+    }
+
+    // If config provided, validate and optionally migrate
+    if (configPath) {
+      console.log('\nValidating config against changes...');
+      const { data, format } = await loadConfigFile(configPath);
+
+      const validation = validateConfigAgainstChanges(data, diff);
+
+      if (validation.valid) {
+        console.log('  ✓ Config is compatible with schema changes');
+      } else {
+        console.log('  ✗ Config has compatibility issues:');
+        for (const error of validation.errors) {
+          console.log(`    - ${error}`);
+        }
+      }
+
+      // Auto-migrate if requested
+      if (autoMigrate) {
+        console.log('\nApplying automatic migrations...');
+        const migration = applyAutoMigrations(data, diff, newSchema);
+
+        if (migration.applied.length > 0) {
+          console.log('  Applied migrations:');
+          for (const applied of migration.applied) {
+            console.log(`    ✓ ${applied}`);
+          }
+        }
+
+        if (migration.manual.length > 0) {
+          console.log('  Manual migrations required:');
+          for (const manual of migration.manual) {
+            console.log(`    ⚠ ${manual}`);
+          }
+        }
+
+        if (outputPath) {
+          await writeConfigFile(resolve(process.cwd(), outputPath), migration.config, format);
+          console.log(`\n  Migrated config written to: ${outputPath}`);
+        } else if (migration.applied.length > 0) {
+          console.log('\n  Use -o/--output to save migrated config');
+        }
+      }
+    }
+
+    // Exit with error code if breaking changes
+    if (diff.hasBreakingChanges && !autoMigrate) {
+      process.exit(1);
+    }
+
+  } catch (error) {
+    console.error(`\nError: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseCliArgs();
   const command = args.positionals[0];
@@ -739,8 +901,12 @@ async function main(): Promise<void> {
 
     case 'analyze':
     case 'scan':
-    case 'migrate':
       await commandAnalyze(args);
+      break;
+
+    case 'migrate':
+    case 'diff':
+      await commandMigrate(args);
       break;
 
     case 'encrypt':
