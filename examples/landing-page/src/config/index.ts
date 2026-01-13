@@ -8,7 +8,7 @@ export const schema = z.object({
     description: z.string().default('Define your config schema once with Zod and load from multiple sources with full TypeScript inference.'),
     url: z.string().url().default('https://github.com/groschi24/zonfig'),
     github: z.string().url().default('https://github.com/groschi24/zonfig'),
-    npm: z.string().url().default('https://www.npmjs.com/package/zonfig'),
+    npm: z.string().url().default('https://www.npmjs.com/package/@zonfig/zonfig'),
   }),
 
   features: z.object({

@@ -1,6 +1,6 @@
 {
   "name": "@zonfig/zonfig",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Universal typed configuration library with Zod validation, multi-source loading, and auto-documentation",
   "type": "module",
   "main": "./dist/index.cjs",

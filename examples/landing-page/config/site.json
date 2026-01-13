@@ -5,7 +5,7 @@
     "description": "Define your config schema once with Zod and load from multiple sources with full TypeScript inference.",
     "url": "https://github.com/groschi24/zonfig",
     "github": "https://github.com/groschi24/zonfig",
-    "npm": "https://www.npmjs.com/package/zonfig"
+    "npm": "https://www.npmjs.com/package/@zonfig/zonfig"
   },
   "features": {
     "showInstallCommand": true,

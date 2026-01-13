@@ -6,7 +6,7 @@ import { generateDocs } from '../documentation/index.js';
 import { analyzeProject } from './analyze.js';
 import { z } from 'zod';
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 const HELP = `
 zonfig - Universal typed configuration CLI
