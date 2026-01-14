@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { generateDocs } from '../documentation/index.js';
 import { analyzeProject } from './analyze.js';
-import { encryptObject, decryptObject, countEncryptedValues, hasEncryptedValues } from '../utils/encrypt.js';
+import { encryptObject, decryptObject, countEncryptedValues } from '../utils/encrypt.js';
 import { diffSchemas, generateMigrationReport, validateConfigAgainstChanges, applyAutoMigrations } from '../utils/schema-diff.js';
 import { z } from 'zod';
 import { input, select, confirm, checkbox } from '@inquirer/prompts';
@@ -950,7 +950,7 @@ async function commandEncrypt(args: ParsedArgs): Promise<void> {
 
     const encrypted = encryptObject(data, {
       key,
-      paths,
+      ...(paths ? { paths } : {}),
       useSensitivePatterns: !paths, // Use patterns only if no specific paths
     });
 
@@ -1261,7 +1261,7 @@ async function commandShow(args: ParsedArgs): Promise<void> {
     console.log('Configuration:');
     console.log('==============\n');
 
-    function printTree(obj: unknown, prefix = '', isLast = true): void {
+    function printTree(obj: unknown, prefix = '', _isLast = true): void {
       if (!obj || typeof obj !== 'object') return;
 
       const entries = Object.entries(obj);
@@ -1572,14 +1572,11 @@ async function commandCheck(args: ParsedArgs): Promise<void> {
   // Print results
   console.log('Results:');
   let hasErrors = false;
-  let hasWarnings = false;
 
   for (const result of results) {
     const icon = result.status === 'pass' ? '✓' : result.status === 'warn' ? '⚠' : '✗';
-    const color = result.status === 'pass' ? '' : result.status === 'warn' ? '' : '';
     console.log(`  ${icon} ${result.name}: ${result.message}`);
     if (result.status === 'fail') hasErrors = true;
-    if (result.status === 'warn') hasWarnings = true;
   }
 
   // Summary
