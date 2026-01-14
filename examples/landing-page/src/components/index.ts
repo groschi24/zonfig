@@ -1,5 +1,6 @@
 export { Header } from './Header';
 export { Hero } from './Hero';
+export { Logo, LogoIcon } from './Logo';
 export { ProblemSection } from './ProblemSection';
 export { FlowSection } from './FlowSection';
 export { ValidationSection } from './ValidationSection';

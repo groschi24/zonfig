@@ -1,10 +1,25 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
 import { defineConfig, ConfigValidationError, encryptValue } from '../src/index.js';
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 const testDir = join(process.cwd(), 'tests', 'fixtures');
+
+// Track env vars we set so we can clean them up
+const envVarsSet = new Set<string>();
+
+function setEnv(key: string, value: string): void {
+  envVarsSet.add(key);
+  process.env[key] = value;
+}
+
+function clearEnvVars(): void {
+  for (const key of envVarsSet) {
+    delete process.env[key];
+  }
+  envVarsSet.clear();
+}
 
 describe('defineConfig', () => {
   beforeEach(() => {
@@ -13,7 +28,7 @@ describe('defineConfig', () => {
 
   afterEach(() => {
     rmSync(testDir, { recursive: true, force: true });
-    vi.unstubAllEnvs();
+    clearEnvVars();
   });
 
   it('validates and returns typed config from object source', async () => {
@@ -58,8 +73,8 @@ describe('defineConfig', () => {
   });
 
   it('loads config from environment variables', async () => {
-    vi.stubEnv('APP_SERVER__PORT', '9000');
-    vi.stubEnv('APP_DEBUG', 'true');
+    setEnv('APP_SERVER__PORT', '9000');
+    setEnv('APP_DEBUG', 'true');
 
     const schema = z.object({
       server: z.object({
@@ -85,7 +100,7 @@ describe('defineConfig', () => {
       server: { host: 'file-host', port: 3000 },
     }));
 
-    vi.stubEnv('APP_SERVER__PORT', '8080');
+    setEnv('APP_SERVER__PORT', '8080');
 
     const schema = z.object({
       server: z.object({
@@ -205,7 +220,7 @@ describe('defineConfig', () => {
     it('auto-decrypts values when decrypt option is true', async () => {
       const encryptedPassword = encryptValue('my-secret-password', TEST_KEY);
 
-      vi.stubEnv('ZONFIG_ENCRYPTION_KEY', TEST_KEY);
+      setEnv('ZONFIG_ENCRYPTION_KEY', TEST_KEY);
 
       const schema = z.object({
         database: z.object({
@@ -247,7 +262,7 @@ describe('defineConfig', () => {
     it('auto-decrypts from env key when decrypt is undefined and ZONFIG_ENCRYPTION_KEY is set', async () => {
       const encryptedPassword = encryptValue('auto-secret', TEST_KEY);
 
-      vi.stubEnv('ZONFIG_ENCRYPTION_KEY', TEST_KEY);
+      setEnv('ZONFIG_ENCRYPTION_KEY', TEST_KEY);
 
       const schema = z.object({
         password: z.string(),
@@ -266,7 +281,7 @@ describe('defineConfig', () => {
     it('does not decrypt when decrypt is false', async () => {
       const encryptedPassword = encryptValue('should-stay-encrypted', TEST_KEY);
 
-      vi.stubEnv('ZONFIG_ENCRYPTION_KEY', TEST_KEY);
+      setEnv('ZONFIG_ENCRYPTION_KEY', TEST_KEY);
 
       const schema = z.object({
         password: z.string(),
