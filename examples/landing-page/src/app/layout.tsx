@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { getSiteConfig } from '@/config';
 import './globals.css';
 
@@ -34,6 +35,13 @@ export default async function RootLayout({
     <html lang="en" className={config.theme.darkMode ? 'dark' : ''}>
       <body>
         {children}
+        {process.env.NEXT_PUBLIC_ANALYTICS_SITE_ID && (
+          <Script
+            src={process.env.NEXT_PUBLIC_ANALYTICS_URL || 'https://app.rybbit.io/api/script.js'}
+            data-site-id={process.env.NEXT_PUBLIC_ANALYTICS_SITE_ID}
+            strategy="afterInteractive"
+          />
+        )}
       </body>
     </html>
   );
