@@ -173,7 +173,7 @@ export class Config<TSchema extends z.ZodType, TData = z.infer<TSchema>> {
       const { data, provenance } = await loadConfig(this.options, this.context);
 
       // Find changed paths
-      const changedPaths = this.findChangedPaths(oldData, data);
+      const changedPaths = this.findChangedPaths(oldData, data as TData);
 
       if (changedPaths.length > 0) {
         this.data = deepFreeze(data as object) as TData;

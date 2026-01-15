@@ -61,8 +61,20 @@ export interface SchemaField {
 /**
  * Get the type name from a Zod schema, handling both old and new Zod internal structures
  */
-function getZodTypeName(schema: z.ZodType): string {
-  const def = (schema as unknown as { _def: Record<string, unknown> })._def;
+function getZodTypeName(schema: z.ZodType | Record<string, unknown>): string {
+  const s = schema as Record<string, unknown>;
+
+  // Get def from various locations
+  let def: Record<string, unknown>;
+  if ('_def' in s && s._def && typeof s._def === 'object') {
+    def = s._def as Record<string, unknown>;
+  } else if ('def' in s && s.def && typeof s.def === 'object') {
+    def = s.def as Record<string, unknown>;
+  } else if ('type' in s && typeof s.type === 'string') {
+    def = s as Record<string, unknown>;
+  } else {
+    return 'ZodUnknown';
+  }
 
   // Old Zod (v3.x) uses typeName like 'ZodObject'
   if (def.typeName) {
@@ -125,11 +137,31 @@ function getZodTypeName(schema: z.ZodType): string {
 }
 
 /**
+ * Get the _def from a Zod schema, handling both Zod 3 and Zod 4 structures
+ */
+function getZodDef(schema: z.ZodType | Record<string, unknown>): Record<string, unknown> {
+  const s = schema as Record<string, unknown>;
+  // Zod 3 uses _def, Zod 4 might have def directly on nested elements
+  if ('_def' in s && s._def && typeof s._def === 'object') {
+    return s._def as Record<string, unknown>;
+  }
+  // Zod 4 nested elements have def directly
+  if ('def' in s && s.def && typeof s.def === 'object') {
+    return s.def as Record<string, unknown>;
+  }
+  // Some Zod 4 elements have type directly
+  if ('type' in s && typeof s.type === 'string') {
+    return s as Record<string, unknown>;
+  }
+  return {};
+}
+
+/**
  * Extract field information from a Zod schema
  */
-export function extractSchemaInfo(schema: z.ZodType): SchemaField {
-  const def = (schema as unknown as { _def: Record<string, unknown> })._def;
-  const typeName = getZodTypeName(schema);
+export function extractSchemaInfo(schema: z.ZodType | Record<string, unknown>): SchemaField {
+  const def = getZodDef(schema);
+  const typeName = getZodTypeName(schema as z.ZodType);
 
   const field: SchemaField = {
     type: typeName,
@@ -186,9 +218,11 @@ export function extractSchemaInfo(schema: z.ZodType): SchemaField {
     }
   }
 
-  // Handle arrays - in new Zod, element type might be in 'element' instead of 'type'
+  // Handle arrays - Zod 4 uses 'element', Zod 3 uses 'type'
   if (typeName === 'ZodArray') {
-    const elementType = def.type || def.element;
+    // In Zod 4, def.type is "array" string, not the element
+    // Check def.element first (Zod 4), then def.type if it's an object (Zod 3)
+    const elementType = def.element || (typeof def.type === 'object' ? def.type : null);
     if (elementType && typeof elementType === 'object') {
       field.itemType = extractSchemaInfo(elementType as z.ZodType);
     }

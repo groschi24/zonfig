@@ -38,6 +38,14 @@ function extractFields(
 }
 
 /**
+ * Get the type name from Zod _def (works with both Zod 3 and Zod 4)
+ */
+function getDefType(def: Record<string, unknown>): string {
+  // Zod 4 uses 'type', Zod 3 uses 'typeName'
+  return (def.type as string) || (def.typeName as string) || '';
+}
+
+/**
  * Get field information from a Zod type
  */
 function getFieldInfo(zodType: z.ZodType, path: string): FieldInfo {
@@ -51,14 +59,15 @@ function getFieldInfo(zodType: z.ZodType, path: string): FieldInfo {
 
   // Check for optional
   if ('_def' in current) {
-    const def = current._def as Record<string, unknown>;
+    const def = current._def as unknown as Record<string, unknown>;
+    const defType = getDefType(def);
 
-    if (def.typeName === 'ZodOptional') {
+    if (defType === 'optional' || defType === 'ZodOptional') {
       required = false;
       current = def.innerType as z.ZodType;
     }
 
-    if (def.typeName === 'ZodDefault') {
+    if (defType === 'default' || defType === 'ZodDefault') {
       required = false;
       defaultValue = typeof def.defaultValue === 'function'
         ? (def.defaultValue as () => unknown)()
@@ -91,32 +100,37 @@ function getFieldInfo(zodType: z.ZodType, path: string): FieldInfo {
 function getZodTypeName(zodType: z.ZodType): string {
   if (!('_def' in zodType)) return 'unknown';
 
-  const def = zodType._def as Record<string, unknown>;
-  const typeName = def.typeName as string;
+  const def = zodType._def as unknown as Record<string, unknown>;
+  const typeName = getDefType(def);
 
-  switch (typeName) {
-    case 'ZodString':
+  // Normalize to lowercase for comparison (Zod 4 uses lowercase)
+  const normalizedType = typeName.toLowerCase().replace('zod', '');
+
+  switch (normalizedType) {
+    case 'string':
       return 'string';
-    case 'ZodNumber':
+    case 'number':
       return 'number';
-    case 'ZodBoolean':
+    case 'boolean':
       return 'boolean';
-    case 'ZodArray':
+    case 'array':
       return 'array';
-    case 'ZodObject':
+    case 'object':
       return 'object';
-    case 'ZodEnum':
-      return `enum(${(def.values as string[]).join(', ')})`;
-    case 'ZodUnion':
+    case 'enum':
+      // Zod 4 uses 'entries', Zod 3 uses 'values'
+      const enumValues = (def.entries as string[]) || (def.values as string[]) || [];
+      return `enum(${enumValues.join(', ')})`;
+    case 'union':
       return 'union';
-    case 'ZodOptional':
+    case 'optional':
       return getZodTypeName(def.innerType as z.ZodType) + '?';
-    case 'ZodDefault':
+    case 'default':
       return getZodTypeName(def.innerType as z.ZodType);
-    case 'ZodNullable':
+    case 'nullable':
       return getZodTypeName(def.innerType as z.ZodType) + ' | null';
     default:
-      return typeName.replace('Zod', '').toLowerCase();
+      return normalizedType || 'unknown';
   }
 }
 

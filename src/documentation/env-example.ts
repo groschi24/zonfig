@@ -68,6 +68,16 @@ function extractEnvFields(
 }
 
 /**
+ * Get the type name from Zod _def (works with both Zod 3 and Zod 4)
+ */
+function getDefType(def: Record<string, unknown>): string {
+  // Zod 4 uses 'type', Zod 3 uses 'typeName'
+  const typeName = (def.type as string) || (def.typeName as string) || '';
+  // Normalize to lowercase for comparison
+  return typeName.toLowerCase().replace('zod', '');
+}
+
+/**
  * Get field information for env example
  */
 function getEnvFieldInfo(zodType: z.ZodType, path: string, envPrefix: string): EnvField {
@@ -79,14 +89,15 @@ function getEnvFieldInfo(zodType: z.ZodType, path: string, envPrefix: string): E
   let current = zodType;
 
   if ('_def' in current) {
-    const def = current._def as Record<string, unknown>;
+    const def = current._def as unknown as Record<string, unknown>;
+    const defType = getDefType(def);
 
-    if (def.typeName === 'ZodOptional') {
+    if (defType === 'optional') {
       required = false;
       current = def.innerType as z.ZodType;
     }
 
-    if (def.typeName === 'ZodDefault') {
+    if (defType === 'default') {
       required = false;
       defaultValue = typeof def.defaultValue === 'function'
         ? (def.defaultValue as () => unknown)()
@@ -99,24 +110,26 @@ function getEnvFieldInfo(zodType: z.ZodType, path: string, envPrefix: string): E
     }
 
     // Get type from unwrapped type
-    const innerDef = ('_def' in current ? current._def : {}) as Record<string, unknown>;
-    const typeName = innerDef.typeName as string;
+    const innerDef = ('_def' in current ? current._def as unknown : {}) as Record<string, unknown>;
+    const innerType = getDefType(innerDef);
 
-    switch (typeName) {
-      case 'ZodString':
+    switch (innerType) {
+      case 'string':
         type = 'string';
         break;
-      case 'ZodNumber':
+      case 'number':
         type = 'number';
         break;
-      case 'ZodBoolean':
+      case 'boolean':
         type = 'boolean';
         break;
-      case 'ZodEnum':
-        type = `enum: ${(innerDef.values as string[]).join(' | ')}`;
+      case 'enum':
+        // Zod 4 uses 'entries', Zod 3 uses 'values'
+        const enumValues = (innerDef.entries as string[]) || (innerDef.values as string[]) || [];
+        type = `enum: ${enumValues.join(' | ')}`;
         break;
       default:
-        type = typeName?.replace('Zod', '').toLowerCase() ?? 'unknown';
+        type = innerType || 'unknown';
     }
   }
 
