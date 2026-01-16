@@ -31,6 +31,25 @@ describe('defineConfig', () => {
     clearEnvVars();
   });
 
+  it('does not load config until accessed', async () => {
+    const schema = z.object({
+      value: z.string().default('default'),
+    });
+
+    const config = defineConfig({
+      schema,
+      sources: [{ type: 'object', data: { value: 'loaded' } }],
+    });
+
+    // Config should not be loaded yet
+    expect(config.isLoaded).toBe(false);
+
+    // Now access it
+    const value = await config.get('value');
+    expect(value).toBe('loaded');
+    expect(config.isLoaded).toBe(true);
+  });
+
   it('validates and returns typed config from object source', async () => {
     const schema = z.object({
       server: z.object({
@@ -39,15 +58,15 @@ describe('defineConfig', () => {
       }),
     });
 
-    const config = await defineConfig({
+    const config = defineConfig({
       schema,
       sources: [
         { type: 'object', data: { server: { port: 8080 } } },
       ],
     });
 
-    expect(config.get('server.host')).toBe('localhost');
-    expect(config.get('server.port')).toBe(8080);
+    expect(await config.get('server.host')).toBe('localhost');
+    expect(await config.get('server.port')).toBe(8080);
   });
 
   it('loads config from JSON file', async () => {
@@ -62,14 +81,14 @@ describe('defineConfig', () => {
       }),
     });
 
-    const config = await defineConfig({
+    const config = defineConfig({
       schema,
       sources: [
         { type: 'file', path: configFile },
       ],
     });
 
-    expect(config.get('database.url')).toBe('postgres://localhost/test');
+    expect(await config.get('database.url')).toBe('postgres://localhost/test');
   });
 
   it('loads config from environment variables', async () => {
@@ -83,15 +102,15 @@ describe('defineConfig', () => {
       debug: z.boolean().default(false),
     });
 
-    const config = await defineConfig({
+    const config = defineConfig({
       schema,
       sources: [
         { type: 'env', prefix: 'APP_' },
       ],
     });
 
-    expect(config.get('server.port')).toBe(9000);
-    expect(config.get('debug')).toBe(true);
+    expect(await config.get('server.port')).toBe(9000);
+    expect(await config.get('debug')).toBe(true);
   });
 
   it('merges multiple sources with later taking precedence', async () => {
@@ -109,7 +128,7 @@ describe('defineConfig', () => {
       }),
     });
 
-    const config = await defineConfig({
+    const config = defineConfig({
       schema,
       sources: [
         { type: 'file', path: configFile },
@@ -117,8 +136,8 @@ describe('defineConfig', () => {
       ],
     });
 
-    expect(config.get('server.host')).toBe('file-host');
-    expect(config.get('server.port')).toBe(8080);
+    expect(await config.get('server.host')).toBe('file-host');
+    expect(await config.get('server.port')).toBe(8080);
   });
 
   it('throws ConfigValidationError on invalid config', async () => {
@@ -126,14 +145,14 @@ describe('defineConfig', () => {
       port: z.number().min(1).max(65535),
     });
 
-    await expect(
-      defineConfig({
-        schema,
-        sources: [
-          { type: 'object', data: { port: 'not-a-number' } },
-        ],
-      })
-    ).rejects.toThrow(ConfigValidationError);
+    const config = defineConfig({
+      schema,
+      sources: [
+        { type: 'object', data: { port: 'not-a-number' } },
+      ],
+    });
+
+    await expect(config.load()).rejects.toThrow(ConfigValidationError);
   });
 
   it('handles optional files gracefully', async () => {
@@ -141,14 +160,14 @@ describe('defineConfig', () => {
       value: z.string().default('default'),
     });
 
-    const config = await defineConfig({
+    const config = defineConfig({
       schema,
       sources: [
         { type: 'file', path: './nonexistent.json', optional: true },
       ],
     });
 
-    expect(config.get('value')).toBe('default');
+    expect(await config.get('value')).toBe('default');
   });
 
   it('supports profile-based configuration', async () => {
@@ -157,7 +176,7 @@ describe('defineConfig', () => {
       apiUrl: z.string(),
     });
 
-    const config = await defineConfig({
+    const config = defineConfig({
       schema,
       profiles: {
         development: {
@@ -175,8 +194,8 @@ describe('defineConfig', () => {
       profile: 'development',
     });
 
-    expect(config.get('debug')).toBe(true);
-    expect(config.get('apiUrl')).toBe('http://localhost:3000');
+    expect(await config.get('debug')).toBe(true);
+    expect(await config.get('apiUrl')).toBe('http://localhost:3000');
   });
 
   it('getAll returns the full config object', async () => {
@@ -185,14 +204,14 @@ describe('defineConfig', () => {
       b: z.number(),
     });
 
-    const config = await defineConfig({
+    const config = defineConfig({
       schema,
       sources: [
         { type: 'object', data: { a: 'hello', b: 42 } },
       ],
     });
 
-    const all = config.getAll();
+    const all = await config.getAll();
     expect(all).toEqual({ a: 'hello', b: 42 });
   });
 
@@ -201,17 +220,99 @@ describe('defineConfig', () => {
       value: z.string(),
     });
 
-    const config = await defineConfig({
+    const config = defineConfig({
       schema,
       sources: [
         { type: 'object', data: { value: 'test' } },
       ],
     });
 
-    const all = config.getAll();
+    const all = await config.getAll();
     expect(() => {
       (all as Record<string, unknown>).value = 'modified';
     }).toThrow();
+  });
+
+  it('caches the config after first load', async () => {
+    const schema = z.object({
+      value: z.string(),
+    });
+
+    const config = defineConfig({
+      schema,
+      sources: [{ type: 'object', data: { value: 'cached' } }],
+    });
+
+    // Access multiple times
+    await config.get('value');
+    await config.get('value');
+    const cfg1 = await config.load();
+    const cfg2 = await config.load();
+
+    // Should return the same instance
+    expect(cfg1).toBe(cfg2);
+  });
+
+  it('handles concurrent access safely', async () => {
+    const schema = z.object({
+      value: z.string(),
+    });
+
+    const config = defineConfig({
+      schema,
+      sources: [{ type: 'object', data: { value: 'concurrent' } }],
+    });
+
+    // Access multiple times concurrently
+    const [v1, v2, v3] = await Promise.all([
+      config.get('value'),
+      config.get('value'),
+      config.get('value'),
+    ]);
+
+    expect(v1).toBe('concurrent');
+    expect(v2).toBe('concurrent');
+    expect(v3).toBe('concurrent');
+  });
+
+  it('reload() forces a fresh load', async () => {
+    setEnv('LAZY_VALUE', 'initial');
+
+    const schema = z.object({
+      value: z.string().default('default'),
+    });
+
+    const config = defineConfig({
+      schema,
+      sources: [{ type: 'env', prefix: 'LAZY_' }],
+    });
+
+    expect(await config.get('value')).toBe('initial');
+
+    // Change the env var
+    setEnv('LAZY_VALUE', 'updated');
+
+    // Reload should pick up the new value
+    await config.reload();
+    expect(await config.get('value')).toBe('updated');
+  });
+
+  it('reads environment variables at runtime, not at definition time', async () => {
+    const schema = z.object({
+      apiKey: z.string().default(''),
+    });
+
+    // Create config BEFORE setting env var
+    const config = defineConfig({
+      schema,
+      sources: [{ type: 'env', prefix: 'RUNTIME_' }],
+    });
+
+    // Set env var AFTER creating config (simulates Coolify runtime injection)
+    setEnv('RUNTIME_API_KEY', 'runtime-secret');
+
+    // Now access - should pick up the env var
+    expect(await config.get('apiKey')).toBe('runtime-secret');
   });
 
   describe('auto-decryption', () => {
@@ -229,7 +330,7 @@ describe('defineConfig', () => {
         }),
       });
 
-      const config = await defineConfig({
+      const config = defineConfig({
         schema,
         sources: [
           { type: 'object', data: { database: { host: 'localhost', password: encryptedPassword } } },
@@ -237,8 +338,8 @@ describe('defineConfig', () => {
         decrypt: true,
       });
 
-      expect(config.get('database.password')).toBe('my-secret-password');
-      expect(config.get('database.host')).toBe('localhost');
+      expect(await config.get('database.password')).toBe('my-secret-password');
+      expect(await config.get('database.host')).toBe('localhost');
     });
 
     it('auto-decrypts when decrypt config provides key', async () => {
@@ -248,7 +349,7 @@ describe('defineConfig', () => {
         password: z.string(),
       });
 
-      const config = await defineConfig({
+      const config = defineConfig({
         schema,
         sources: [
           { type: 'object', data: { password: encryptedPassword } },
@@ -256,7 +357,7 @@ describe('defineConfig', () => {
         decrypt: { key: TEST_KEY },
       });
 
-      expect(config.get('password')).toBe('secret123');
+      expect(await config.get('password')).toBe('secret123');
     });
 
     it('auto-decrypts from env key when decrypt is undefined and ZONFIG_ENCRYPTION_KEY is set', async () => {
@@ -268,14 +369,14 @@ describe('defineConfig', () => {
         password: z.string(),
       });
 
-      const config = await defineConfig({
+      const config = defineConfig({
         schema,
         sources: [
           { type: 'object', data: { password: encryptedPassword } },
         ],
       });
 
-      expect(config.get('password')).toBe('auto-secret');
+      expect(await config.get('password')).toBe('auto-secret');
     });
 
     it('does not decrypt when decrypt is false', async () => {
@@ -287,7 +388,7 @@ describe('defineConfig', () => {
         password: z.string(),
       });
 
-      const config = await defineConfig({
+      const config = defineConfig({
         schema,
         sources: [
           { type: 'object', data: { password: encryptedPassword } },
@@ -296,7 +397,7 @@ describe('defineConfig', () => {
       });
 
       // Password should still be encrypted
-      expect(config.get('password')).toMatch(/^ENC\[AES256_GCM,/);
+      expect(await config.get('password')).toMatch(/^ENC\[AES256_GCM,/);
     });
 
     it('handles nested encrypted values', async () => {
@@ -312,7 +413,7 @@ describe('defineConfig', () => {
         }),
       });
 
-      const config = await defineConfig({
+      const config = defineConfig({
         schema,
         sources: [
           { type: 'object', data: {
@@ -323,8 +424,8 @@ describe('defineConfig', () => {
         decrypt: { key: TEST_KEY },
       });
 
-      expect(config.get('api.token')).toBe('api-token-123');
-      expect(config.get('oauth.clientSecret')).toBe('client-secret-456');
+      expect(await config.get('api.token')).toBe('api-token-123');
+      expect(await config.get('oauth.clientSecret')).toBe('client-secret-456');
     });
   });
 });

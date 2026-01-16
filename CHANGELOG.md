@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** `defineConfig()` now returns a `ConfigContainer` that loads lazily
+  - Config is loaded on first access, safe for containerized deployments (Docker, Coolify, Kubernetes)
+  - `await config.get('path')` - Get a value directly
+  - `await config.getAll()` - Get full config object
+  - `await config.getMasked()` - Get config with secrets masked
+  - `await config.load()` - Get underlying Config instance for watch mode
+  - `await config.reload()` - Force reload when env vars change
+  - `config.isLoaded` - Check if config has been loaded
 - Updated all dependencies to latest versions
 - Migrated internal schema introspection to support Zod 4's new `_def` structure:
   - Type detection now uses `_def.type` (Zod 4) with fallback to `_def.typeName` (Zod 3)

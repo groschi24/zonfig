@@ -555,10 +555,116 @@ function trackProvenance(
 }
 
 /**
- * Main entry point for creating typed configuration
+ * Configuration container that loads on first access.
+ * This ensures environment variables are read at runtime, not at module initialization.
  */
-export async function defineConfig<TSchema extends z.ZodType>(
+export class ConfigContainer<TSchema extends z.ZodType> {
+  private config: Config<TSchema> | null = null;
+  private loading: Promise<Config<TSchema>> | null = null;
+  private readonly options: ConfigOptions<TSchema>;
+
+  constructor(options: ConfigOptions<TSchema>) {
+    this.options = options;
+  }
+
+  /**
+   * Get a configuration value by path
+   * Automatically loads config on first access
+   */
+  async get<P extends PathsOf<z.infer<TSchema>>>(path: P): Promise<ValueAt<z.infer<TSchema>, P>> {
+    const config = await this.load();
+    return config.get(path);
+  }
+
+  /**
+   * Get the entire configuration object
+   */
+  async getAll(): Promise<Readonly<z.infer<TSchema>>> {
+    const config = await this.load();
+    return config.getAll();
+  }
+
+  /**
+   * Get the configuration with sensitive values masked
+   */
+  async getMasked(): Promise<z.infer<TSchema>> {
+    const config = await this.load();
+    return config.getMasked();
+  }
+
+  /**
+   * Get the underlying Config instance
+   * Loads if not already loaded
+   */
+  async load(): Promise<Config<TSchema>> {
+    if (this.config) {
+      return this.config;
+    }
+
+    if (this.loading) {
+      return this.loading;
+    }
+
+    this.loading = Config.create(this.options);
+
+    try {
+      this.config = await this.loading;
+      return this.config;
+    } finally {
+      this.loading = null;
+    }
+  }
+
+  /**
+   * Force reload the configuration from sources
+   * Useful when environment variables have changed
+   */
+  async reload(): Promise<Config<TSchema>> {
+    this.config = null;
+    this.loading = null;
+    return this.load();
+  }
+
+  /**
+   * Check if configuration has been loaded
+   */
+  get isLoaded(): boolean {
+    return this.config !== null;
+  }
+}
+
+/**
+ * Create a typed configuration.
+ * Config is loaded lazily on first access, making it safe for containerized
+ * deployments (Docker, Coolify, Kubernetes, etc.) where environment variables
+ * are injected at runtime.
+ *
+ * @example
+ * ```typescript
+ * // config.ts
+ * import { defineConfig, z } from '@zonfig/zonfig';
+ *
+ * export const config = defineConfig({
+ *   schema: z.object({
+ *     port: z.number().default(3000),
+ *     database: z.object({
+ *       host: z.string(),
+ *       password: z.string(),
+ *     }),
+ *   }),
+ *   sources: [{ type: 'env', prefix: 'APP_' }],
+ * });
+ *
+ * // server.ts
+ * const port = await config.get('port');
+ * const dbHost = await config.get('database.host');
+ *
+ * // Or get everything at once
+ * const all = await config.getAll();
+ * ```
+ */
+export function defineConfig<TSchema extends z.ZodType>(
   options: ConfigOptions<TSchema>
-): Promise<Config<TSchema>> {
-  return Config.create(options);
+): ConfigContainer<TSchema> {
+  return new ConfigContainer(options);
 }

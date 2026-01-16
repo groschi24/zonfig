@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeFileSync, unlinkSync, mkdirSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { defineConfig } from '../src/index.js';
@@ -28,10 +28,12 @@ describe('Watch Mode', () => {
         host: z.string(),
       });
 
-      const config = await defineConfig({
+      const container = defineConfig({
         schema,
         sources: [{ type: 'file', path: TEST_CONFIG_FILE }],
       });
+
+      const config = await container.load();
 
       expect(config.watching).toBe(false);
       config.watch();
@@ -46,10 +48,12 @@ describe('Watch Mode', () => {
         host: z.string(),
       });
 
-      const config = await defineConfig({
+      const container = defineConfig({
         schema,
         sources: [{ type: 'file', path: TEST_CONFIG_FILE }],
       });
+
+      const config = await container.load();
 
       config.watch();
       config.watch(); // Should not throw or create duplicate watchers
@@ -65,10 +69,12 @@ describe('Watch Mode', () => {
         host: z.string(),
       });
 
-      const config = await defineConfig({
+      const container = defineConfig({
         schema,
         sources: [{ type: 'file', path: TEST_CONFIG_FILE }],
       });
+
+      const config = await container.load();
 
       config.watch();
       config.unwatch();
@@ -81,10 +87,12 @@ describe('Watch Mode', () => {
         host: z.string(),
       });
 
-      const config = await defineConfig({
+      const container = defineConfig({
         schema,
         sources: [{ type: 'file', path: TEST_CONFIG_FILE }],
       });
+
+      const config = await container.load();
 
       config.watch();
       config.unwatch();
@@ -100,10 +108,12 @@ describe('Watch Mode', () => {
         host: z.string(),
       });
 
-      const config = await defineConfig({
+      const container = defineConfig({
         schema,
         sources: [{ type: 'file', path: TEST_CONFIG_FILE }],
       });
+
+      const config = await container.load();
 
       const events: ConfigEvent[] = [];
       const listener = (event: ConfigEvent) => events.push(event);
@@ -133,10 +143,12 @@ describe('Watch Mode', () => {
         host: z.string(),
       });
 
-      const config = await defineConfig({
+      const container = defineConfig({
         schema,
         sources: [{ type: 'file', path: TEST_CONFIG_FILE }],
       });
+
+      const config = await container.load();
 
       expect(config.get('port')).toBe(3000);
 
@@ -155,10 +167,12 @@ describe('Watch Mode', () => {
         host: z.string(),
       });
 
-      const config = await defineConfig({
+      const container = defineConfig({
         schema,
         sources: [{ type: 'file', path: TEST_CONFIG_FILE }],
       });
+
+      const config = await container.load();
 
       const events: ConfigEvent[] = [];
       config.on((event) => events.push(event));
@@ -184,10 +198,12 @@ describe('Watch Mode', () => {
         host: z.string(),
       });
 
-      const config = await defineConfig({
+      const container = defineConfig({
         schema,
         sources: [{ type: 'file', path: TEST_CONFIG_FILE }],
       });
+
+      const config = await container.load();
 
       const events: ConfigEvent[] = [];
       config.on((event) => events.push(event));
@@ -205,10 +221,12 @@ describe('Watch Mode', () => {
         host: z.string(),
       });
 
-      const config = await defineConfig({
+      const container = defineConfig({
         schema,
         sources: [{ type: 'file', path: TEST_CONFIG_FILE }],
       });
+
+      const config = await container.load();
 
       const events: ConfigEvent[] = [];
       config.on((event) => events.push(event));
@@ -230,10 +248,12 @@ describe('Watch Mode', () => {
         host: z.string(),
       });
 
-      const config = await defineConfig({
+      const container = defineConfig({
         schema,
         sources: [{ type: 'file', path: TEST_CONFIG_FILE }],
       });
+
+      const config = await container.load();
 
       const events: ConfigEvent[] = [];
       config.on((event) => events.push(event));
@@ -277,10 +297,12 @@ describe('Watch Mode', () => {
         server: { port: 3000, host: 'localhost' }
       }));
 
-      const config = await defineConfig({
+      const container = defineConfig({
         schema,
         sources: [{ type: 'file', path: nestedConfigFile }],
       });
+
+      const config = await container.load();
 
       const events: ConfigEvent[] = [];
       config.on((event) => events.push(event));

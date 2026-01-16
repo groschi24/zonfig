@@ -2,7 +2,7 @@
 export { z } from 'zod';
 
 // Core
-export { Config, defineConfig } from './core/config.js';
+export { Config, ConfigContainer, defineConfig } from './core/config.js';
 export type {
   ConfigOptions,
   Source,

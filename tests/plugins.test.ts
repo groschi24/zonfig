@@ -97,15 +97,15 @@ describe('Plugin System', () => {
         dbPassword: z.string(),
       });
 
-      const config = await defineConfig({
+      const config = defineConfig({
         schema,
         sources: [
           { type: 'plugin', name: 'mock-secrets', options: { secretId: '123' } },
         ],
       });
 
-      expect(config.get('apiKey')).toBe('secret-123');
-      expect(config.get('dbPassword')).toBe('super-secret');
+      expect(await config.get('apiKey')).toBe('secret-123');
+      expect(await config.get('dbPassword')).toBe('super-secret');
     });
 
     it('throws PluginNotFoundError for unregistered plugin', async () => {
@@ -113,14 +113,14 @@ describe('Plugin System', () => {
         value: z.string(),
       });
 
-      await expect(
-        defineConfig({
-          schema,
-          sources: [
-            { type: 'plugin', name: 'nonexistent-plugin' },
-          ],
-        })
-      ).rejects.toThrow(PluginNotFoundError);
+      const config = defineConfig({
+        schema,
+        sources: [
+          { type: 'plugin', name: 'nonexistent-plugin' },
+        ],
+      });
+
+      await expect(config.load()).rejects.toThrow(PluginNotFoundError);
     });
 
     it('merges plugin config with other sources', async () => {
@@ -140,7 +140,7 @@ describe('Plugin System', () => {
         }),
       });
 
-      const config = await defineConfig({
+      const config = defineConfig({
         schema,
         sources: [
           { type: 'object', data: { server: { port: 3000 } } },
@@ -148,8 +148,8 @@ describe('Plugin System', () => {
         ],
       });
 
-      expect(config.get('server.host')).toBe('plugin-host');
-      expect(config.get('server.port')).toBe(3000);
+      expect(await config.get('server.host')).toBe('plugin-host');
+      expect(await config.get('server.port')).toBe(3000);
     });
   });
 });
