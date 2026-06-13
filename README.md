@@ -33,7 +33,7 @@ npm install @zonfig/zonfig
 import { defineConfig, z } from '@zonfig/zonfig';
 
 // Define your schema
-const config = await defineConfig({
+const config = defineConfig({
   schema: z.object({
     server: z.object({
       host: z.string().default('localhost'),
@@ -52,8 +52,8 @@ const config = await defineConfig({
 });
 
 // Fully typed access
-const port = config.get('server.port');     // number
-const dbUrl = config.get('database.url');   // string
+const port = await config.get('server.port');     // number
+const dbUrl = await config.get('database.url');   // string
 const all = config.getAll();                // Full typed object
 ```
 
@@ -89,12 +89,12 @@ After:
 
 ```typescript
 // Values are automatically decrypted at load time
-const config = await defineConfig({
+const config = defineConfig({
   schema,
   sources: [{ type: 'file', path: './config.encrypted.json' }],
 });
 
-config.get('database.password'); // → "super-secret" (decrypted)
+await config.get('database.password'); // → "super-secret" (decrypted)
 ```
 
 [Learn more about encryption →](#encryption)
@@ -152,7 +152,7 @@ Supports profile interpolation:
 Define different configurations per environment:
 
 ```typescript
-const config = await defineConfig({
+const config = defineConfig({
   schema,
   profiles: {
     development: {
@@ -199,12 +199,12 @@ Use `${VAR}` syntax to reference environment variables and other config values:
 // DB_PASSWORD=secret
 // API_HOST=api.example.com
 
-const config = await defineConfig({ schema, sources });
+const config = defineConfig({ schema, sources });
 
-config.get('database.url');
+await config.get('database.url');
 // → "postgres://admin:secret@localhost:5432/mydb"
 
-config.get('apiUrl');
+await config.get('apiUrl');
 // → "https://api.example.com/v1"
 ```
 
@@ -913,7 +913,7 @@ zonfig can automatically mask sensitive values for safe logging and debugging. T
 ```typescript
 import { defineConfig, z } from '@zonfig/zonfig';
 
-const config = await defineConfig({
+const config = defineConfig({
   schema: z.object({
     database: z.object({
       host: z.string(),
@@ -928,7 +928,7 @@ const config = await defineConfig({
 });
 
 // Get masked config for safe logging
-const masked = config.getMasked();
+const masked = await config.getMasked();
 console.log(masked);
 // {
 //   database: { host: 'localhost', password: '********' },
@@ -956,7 +956,7 @@ By default, the following patterns are detected as sensitive:
 ### Custom Masking Options
 
 ```typescript
-const masked = config.getMasked({
+const masked = await config.getMasked({
   // Add custom patterns for key names
   patterns: [/^my_secret_/i, /internal/i],
 
@@ -1110,7 +1110,7 @@ zonfig automatically decrypts encrypted values when loading configuration if an 
 import { defineConfig, z } from '@zonfig/zonfig';
 
 // Option 1: Set ZONFIG_ENCRYPTION_KEY env var (auto-detected)
-const config = await defineConfig({
+const config = defineConfig({
   schema: z.object({
     database: z.object({
       host: z.string(),
@@ -1124,21 +1124,21 @@ const config = await defineConfig({
 });
 
 // Option 2: Provide key explicitly
-const config2 = await defineConfig({
+const config2 = defineConfig({
   schema,
   sources: [{ type: 'file', path: './config.encrypted.json' }],
   decrypt: { key: 'your-encryption-key' },
 });
 
 // Option 3: Disable auto-decryption
-const config3 = await defineConfig({
+const config3 = defineConfig({
   schema,
   sources: [{ type: 'file', path: './config.encrypted.json' }],
   decrypt: false,
 });
 
 // Values are decrypted transparently
-console.log(config.get('database.password')); // plaintext value
+console.log(await config.get('database.password')); // plaintext value
 ```
 
 ### Programmatic Encryption
